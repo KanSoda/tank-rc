@@ -175,6 +175,11 @@ def move():
         with _motor_lock:
             m = get_motor()
             if needs_kick(prev_l, left) or needs_kick(prev_r, right):
+                # 衝突後の過電流保護ラッチを解除するための事前 0 信号
+                # (前回の停止状態で driver IC がフォルト保持していた場合の復旧)
+                m.setMotorModel(0, 0)
+                time.sleep(0.04)
+                # キックスタート (起動電流確保)
                 kl = kick_value(prev_l, left)
                 kr = kick_value(prev_r, right)
                 m.setMotorModel(kl, kr)
@@ -197,6 +202,26 @@ def stop():
             _last_speeds = (0, 0)
         _last_cmd_time = 0
         return jsonify(ok=True)
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)), 500
+
+
+@app.route('/reset', methods=['POST', 'GET'])
+def reset_motors():
+    """ドライバ IC のフォルトラッチを強制解除する。
+    過電流保護(障害物に衝突して停止後など)で動かなくなった時に呼ぶ。
+    複数回の 0 パルスで確実にフォルト解除。"""
+    global _last_cmd_time, _last_speeds
+    try:
+        with _motor_lock:
+            m = get_motor()
+            # 3回の 0 パルス + 各 60ms 待機 で完全に駆動 IC をリセット
+            for _ in range(3):
+                m.setMotorModel(0, 0)
+                time.sleep(0.06)
+            _last_speeds = (0, 0)
+        _last_cmd_time = 0
+        return jsonify(ok=True, message='Motor driver reset complete')
     except Exception as e:
         return jsonify(ok=False, error=str(e)), 500
 
