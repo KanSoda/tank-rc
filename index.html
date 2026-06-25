@@ -26,7 +26,6 @@
       overflow: hidden;
     }
 
-    /* ===== TOP BAR ===== */
     .topbar {
       display: flex;
       align-items: center;
@@ -36,11 +35,12 @@
       border-bottom: 1px solid var(--border);
     }
     .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: 0.08em; font-size: 14px; }
-    .brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+    .brand-dot.online { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .brand-dot.offline { background: var(--danger); }
     .stats { display: flex; gap: 14px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
     .stat-value { color: var(--text); font-weight: 500; }
 
-    /* ===== CAMERA ===== */
     .camera {
       position: relative;
       width: 100%;
@@ -51,21 +51,25 @@
       overflow: hidden;
     }
     .camera-placeholder {
+      position: absolute;
       color: var(--muted); font-size: 13px; text-align: center;
+      pointer-events: none;
     }
     .camera-placeholder span { font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.4; }
-    .camera img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .camera img { width: 100%; height: 100%; object-fit: cover; display: block; position: relative; z-index: 1; }
+    .camera img.hidden { display: none; }
     .live-badge {
       position: absolute; top: 12px; left: 12px;
       display: flex; align-items: center; gap: 6px;
       padding: 4px 10px; background: rgba(0,0,0,0.6);
       border-radius: 4px; font-size: 10px; letter-spacing: 0.1em; font-weight: 600;
+      z-index: 2;
     }
     .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); animation: pulse 1.4s infinite; }
     @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
     .crosshair {
       position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-      width: 40px; height: 40px; opacity: 0.4;
+      width: 40px; height: 40px; opacity: 0.4; z-index: 2; pointer-events: none;
     }
     .crosshair::before, .crosshair::after {
       content: ''; position: absolute; background: var(--accent);
@@ -73,7 +77,6 @@
     .crosshair::before { left: 50%; top: 0; bottom: 0; width: 1px; transform: translateX(-50%); }
     .crosshair::after { top: 50%; left: 0; right: 0; height: 1px; transform: translateY(-50%); }
 
-    /* ===== CONTROL AREA ===== */
     .controls {
       display: grid;
       grid-template-columns: 1fr 1fr;
@@ -83,7 +86,6 @@
       min-height: 280px;
     }
 
-    /* JOYSTICK */
     .joystick-area {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -112,7 +114,7 @@
       background: radial-gradient(circle at 35% 35%, #4d5260 0%, #2b2e36 100%);
       box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.1);
       cursor: grab;
-      transition: transform 0.1s;
+      transition: transform 0.1s, background 0.1s;
     }
     .joystick-label {
       position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
@@ -129,7 +131,6 @@
     .dpad-marker.left { left: 8px; top: 50%; transform: translateY(-50%); }
     .dpad-marker.right { right: 8px; top: 50%; transform: translateY(-50%); }
 
-    /* ACTION BUTTONS */
     .actions {
       background: var(--panel);
       border: 1px solid var(--border);
@@ -161,13 +162,14 @@
       transition: all 0.15s;
     }
     .btn:active { transform: scale(0.96); border-color: var(--primary); }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
     .btn-icon { font-size: 20px; }
     .btn-label { font-size: 10px; color: var(--muted); letter-spacing: 0.05em; }
     .btn.primary { border-color: var(--primary); }
     .btn.warning { border-color: var(--warning); }
     .btn.danger { border-color: var(--danger); }
+    .btn.active { background: linear-gradient(180deg, #2d3344 0%, #1a1f2e 100%); }
 
-    /* ===== BOTTOM TOOLBAR ===== */
     .toolbar {
       position: fixed; bottom: 0; left: 0; right: 0;
       display: flex; justify-content: space-between; align-items: center;
@@ -191,7 +193,6 @@
       cursor: pointer;
     }
 
-    /* ===== RESPONSIVE ===== */
     @media (max-width: 480px) {
       .camera { aspect-ratio: 16/12; max-height: 45vh; }
       .controls { padding: 14px; gap: 12px; }
@@ -207,20 +208,21 @@
 <body>
 
   <header class="topbar">
-    <div class="brand"><span class="brand-dot"></span>TANK RC</div>
+    <div class="brand"><span class="brand-dot" id="status-dot"></span><span id="brand-label">TANK RC</span></div>
     <div class="stats">
-      <div><span class="stat-value">0.0</span> km/h</div>
-      <div><span class="stat-value">--</span>% bat</div>
-      <div><span class="stat-value">--</span> ms</div>
+      <div><span class="stat-value" id="stat-mode">--</span></div>
+      <div><span class="stat-value" id="stat-cpu">--</span>°C</div>
+      <div><span class="stat-value" id="stat-ping">--</span> ms</div>
     </div>
   </header>
 
   <section class="camera">
-    <div class="camera-placeholder">
+    <div class="camera-placeholder" id="cam-placeholder">
       <span>📷</span>
-      Camera feed<br>
-      <small style="opacity: 0.5;">http://raspberrypi.local:8000/stream.mjpg</small>
+      Connecting to camera...<br>
+      <small style="opacity: 0.5;" id="cam-url-label"></small>
     </div>
+    <img id="cam" class="hidden" alt="Live stream">
     <div class="live-badge"><span class="live-dot"></span>LIVE</div>
     <div class="crosshair"></div>
   </section>
@@ -239,22 +241,22 @@
 
     <div class="actions">
       <div class="actions-title">ACTIONS</div>
-      <button class="btn primary">
+      <button class="btn primary" id="btn-open">
         <span class="btn-icon">🪟</span>
         <span>Open Curtain</span>
         <span class="btn-label">curtain.py</span>
       </button>
-      <button class="btn">
+      <button class="btn" id="btn-close">
         <span class="btn-icon">🔄</span>
         <span>Close</span>
         <span class="btn-label">reverse</span>
       </button>
-      <button class="btn">
+      <button class="btn" id="btn-snapshot">
         <span class="btn-icon">📸</span>
         <span>Snapshot</span>
         <span class="btn-label">save .jpg</span>
       </button>
-      <button class="btn warning">
+      <button class="btn warning" id="btn-led">
         <span class="btn-icon">💡</span>
         <span>LED</span>
         <span class="btn-label">toggle</span>
@@ -265,8 +267,8 @@
   <footer class="toolbar">
     <div class="speed-control">
       <span>SPEED</span>
-      <input type="range" min="0" max="2000" value="800">
-      <span class="stat-value" style="color: var(--text);">800</span>
+      <input type="range" min="100" max="2000" step="50" value="800" id="speed">
+      <span class="stat-value" id="speed-out">800</span>
     </div>
     <button class="e-stop" id="estop">⏹ E-STOP</button>
   </footer>
@@ -274,89 +276,227 @@
   <div id="toast" style="position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: var(--text); padding: 8px 16px; border-radius: 6px; font-size: 12px; letter-spacing: 0.05em; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 100;"></div>
 
   <script>
-    (function () {
-      const stick = document.getElementById('stick');
-      const toast = document.getElementById('toast');
-      const estop = document.getElementById('estop');
-      const speedInput = document.querySelector('input[type="range"]');
-      const speedReadout = speedInput.nextElementSibling;
+  (function () {
+    // ===== URL detection =====
+    // Pi-hosted (LAN): use same origin. Vercel: point to raspberrypi.local:8000.
+    const HOST = location.hostname;
+    const IS_LOCAL = HOST === 'raspberrypi.local'
+                  || HOST === 'localhost'
+                  || HOST === ''
+                  || /^\d+\.\d+\.\d+\.\d+$/.test(HOST);
+    const PI_BASE = IS_LOCAL ? '' : 'http://raspberrypi.local:8000';
+    const MODE = IS_LOCAL ? 'LOCAL' : 'REMOTE';
 
-      const TRAVEL = 28; // px stick offset on key press
-      const held = new Set();
-      let toastTimer = null;
+    // ===== DOM =====
+    const $ = (id) => document.getElementById(id);
+    const stick = $('stick');
+    const toast = $('toast');
+    const estop = $('estop');
+    const cam = $('cam');
+    const camPlaceholder = $('cam-placeholder');
+    const camUrlLabel = $('cam-url-label');
+    const speedInput = $('speed');
+    const speedOut = $('speed-out');
+    const statusDot = $('status-dot');
+    const statMode = $('stat-mode');
+    const statCpu = $('stat-cpu');
+    const statPing = $('stat-ping');
 
-      function showToast(msg) {
-        toast.textContent = msg;
-        toast.style.opacity = '1';
-        clearTimeout(toastTimer);
-        toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 900);
+    statMode.textContent = MODE;
+    camUrlLabel.textContent = (PI_BASE || location.origin) + '/stream.mjpg';
+
+    // ===== Camera =====
+    cam.src = (PI_BASE || '') + '/stream.mjpg';
+    cam.addEventListener('load', () => {
+      cam.classList.remove('hidden');
+      camPlaceholder.style.display = 'none';
+    });
+    cam.addEventListener('error', () => {
+      cam.classList.add('hidden');
+      camPlaceholder.style.display = 'block';
+      camPlaceholder.querySelector('span').textContent = '⚠️';
+      camPlaceholder.firstChild.nextSibling.textContent = ' Camera unreachable';
+    });
+
+    // ===== State =====
+    const TRAVEL = 28;
+    const held = new Set();
+    let moveLoop = null;
+    let lastSent = { left: null, right: null };
+    let toastTimer = null;
+    let ledOn = false;
+
+    // ===== Toast =====
+    function showToast(msg) {
+      toast.textContent = msg;
+      toast.style.opacity = '1';
+      clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 900);
+    }
+
+    // ===== Joystick visual =====
+    function updateStick() {
+      let x = 0, y = 0;
+      if (held.has('up')) y -= 1;
+      if (held.has('down')) y += 1;
+      if (held.has('left')) x -= 1;
+      if (held.has('right')) x += 1;
+      const mag = Math.hypot(x, y) || 1;
+      const nx = (x / mag) * TRAVEL;
+      const ny = (y / mag) * TRAVEL;
+      stick.style.transform = `translate(${nx}px, ${ny}px)`;
+      stick.style.background = (x || y)
+        ? 'radial-gradient(circle at 35% 35%, #5b8def 0%, #2848aa 100%)'
+        : '';
+    }
+
+    // ===== Motor command =====
+    function computeMotors() {
+      const speed = parseInt(speedInput.value);
+      let L = 0, R = 0;
+      if (held.has('up')) { L += speed; R += speed; }
+      if (held.has('down')) { L -= speed; R -= speed; }
+      if (held.has('left')) { L -= speed; R += speed; }
+      if (held.has('right')) { L += speed; R -= speed; }
+      L = Math.max(-2000, Math.min(2000, L));
+      R = Math.max(-2000, Math.min(2000, R));
+      return { L, R };
+    }
+
+    async function sendMove(L, R) {
+      if (lastSent.left === L && lastSent.right === R) return;
+      lastSent = { left: L, right: R };
+      const t0 = performance.now();
+      try {
+        const res = await fetch(PI_BASE + '/move?left=' + L + '&right=' + R, { method: 'POST' });
+        if (res.ok) {
+          statusDot.className = 'brand-dot online';
+          statPing.textContent = Math.round(performance.now() - t0);
+        } else {
+          statusDot.className = 'brand-dot offline';
+        }
+      } catch (e) {
+        statusDot.className = 'brand-dot offline';
+        statPing.textContent = '--';
       }
+    }
 
-      function updateStick() {
-        let x = 0, y = 0;
-        if (held.has('up')) y -= 1;
-        if (held.has('down')) y += 1;
-        if (held.has('left')) x -= 1;
-        if (held.has('right')) x += 1;
-        const mag = Math.hypot(x, y) || 1;
-        const nx = (x / mag) * TRAVEL;
-        const ny = (y / mag) * TRAVEL;
-        stick.style.transform = `translate(${nx}px, ${ny}px)`;
-        stick.style.background = (x || y)
-          ? 'radial-gradient(circle at 35% 35%, #5b8def 0%, #2848aa 100%)'
-          : '';
-      }
-
-      function dirLabel() {
-        const v = held.has('up') ? 'FWD' : held.has('down') ? 'REV' : '';
-        const h = held.has('left') ? 'LEFT' : held.has('right') ? 'RIGHT' : '';
-        return [v, h].filter(Boolean).join(' + ') || 'STOP';
-      }
-
-      const KEY_MAP = {
-        'ArrowUp': 'up', 'w': 'up', 'W': 'up',
-        'ArrowDown': 'down', 's': 'down', 'S': 'down',
-        'ArrowLeft': 'left', 'a': 'left', 'A': 'left',
-        'ArrowRight': 'right', 'd': 'right', 'D': 'right',
-      };
-
-      document.addEventListener('keydown', (e) => {
-        if (e.key === ' ' || e.code === 'Space') {
-          e.preventDefault();
-          held.clear();
-          updateStick();
-          showToast('■ STOP');
+    function ensureMoveLoop() {
+      if (moveLoop !== null) return;
+      moveLoop = setInterval(() => {
+        if (held.size === 0) {
+          clearInterval(moveLoop);
+          moveLoop = null;
+          sendMove(0, 0);
           return;
         }
-        const dir = KEY_MAP[e.key];
-        if (!dir || e.repeat) return;
+        const { L, R } = computeMotors();
+        sendMove(L, R);
+      }, 100);
+    }
+
+    function dirLabel() {
+      const v = held.has('up') ? 'FWD' : held.has('down') ? 'REV' : '';
+      const h = held.has('left') ? 'LEFT' : held.has('right') ? 'RIGHT' : '';
+      return [v, h].filter(Boolean).join(' + ') || 'STOP';
+    }
+
+    // ===== Keyboard =====
+    const KEY_MAP = {
+      'ArrowUp': 'up', 'w': 'up', 'W': 'up',
+      'ArrowDown': 'down', 's': 'down', 'S': 'down',
+      'ArrowLeft': 'left', 'a': 'left', 'A': 'left',
+      'ArrowRight': 'right', 'd': 'right', 'D': 'right',
+    };
+
+    document.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.code === 'Space') {
         e.preventDefault();
-        held.add(dir);
-        updateStick();
-        showToast(dirLabel() + ' @ ' + speedInput.value);
-      });
-
-      document.addEventListener('keyup', (e) => {
-        const dir = KEY_MAP[e.key];
-        if (!dir) return;
-        e.preventDefault();
-        held.delete(dir);
-        updateStick();
-        if (held.size === 0) showToast('■ STOP');
-      });
-
-      window.addEventListener('blur', () => { held.clear(); updateStick(); });
-
-      speedInput.addEventListener('input', () => {
-        speedReadout.textContent = speedInput.value;
-      });
-
-      estop.addEventListener('click', () => {
         held.clear();
         updateStick();
-        showToast('⏹ EMERGENCY STOP');
-      });
-    })();
+        sendMove(0, 0);
+        showToast('■ STOP');
+        return;
+      }
+      const dir = KEY_MAP[e.key];
+      if (!dir || e.repeat) return;
+      e.preventDefault();
+      held.add(dir);
+      updateStick();
+      ensureMoveLoop();
+      showToast(dirLabel() + ' @ ' + speedInput.value);
+    });
+
+    document.addEventListener('keyup', (e) => {
+      const dir = KEY_MAP[e.key];
+      if (!dir) return;
+      e.preventDefault();
+      held.delete(dir);
+      updateStick();
+      if (held.size === 0) showToast('■ STOP');
+    });
+
+    window.addEventListener('blur', () => {
+      held.clear();
+      updateStick();
+      sendMove(0, 0);
+    });
+
+    // ===== Speed =====
+    speedInput.addEventListener('input', () => {
+      speedOut.textContent = speedInput.value;
+    });
+
+    // ===== E-Stop =====
+    estop.addEventListener('click', async () => {
+      held.clear();
+      updateStick();
+      if (moveLoop) { clearInterval(moveLoop); moveLoop = null; }
+      await sendMove(0, 0);
+      showToast('⏹ EMERGENCY STOP');
+    });
+
+    // ===== Action buttons =====
+    async function callApi(path, label) {
+      showToast(label + '...');
+      try {
+        const res = await fetch(PI_BASE + path, { method: 'POST' });
+        const data = await res.json().catch(() => ({}));
+        showToast(label + (data.ok ? ' ✓' : ' ✗'));
+        return data;
+      } catch (e) {
+        showToast(label + ' FAILED');
+      }
+    }
+
+    $('btn-open').addEventListener('click', () => callApi('/curtain/open', 'OPEN CURTAIN'));
+    $('btn-close').addEventListener('click', () => callApi('/curtain/close', 'CLOSE CURTAIN'));
+    $('btn-snapshot').addEventListener('click', () => {
+      window.open(PI_BASE + '/snapshot.jpg', '_blank');
+      showToast('SNAPSHOT');
+    });
+    $('btn-led').addEventListener('click', async () => {
+      const next = ledOn ? 'off' : 'on';
+      const data = await callApi('/led/' + next, 'LED ' + next.toUpperCase());
+      if (data) ledOn = !ledOn;
+      $('btn-led').classList.toggle('active', ledOn);
+    });
+
+    // ===== Stats polling =====
+    async function pollStats() {
+      try {
+        const res = await fetch(PI_BASE + '/stats');
+        if (!res.ok) throw new Error();
+        const s = await res.json();
+        statusDot.className = 'brand-dot online';
+        if (s.cpu_temp != null) statCpu.textContent = s.cpu_temp.toFixed(1);
+      } catch (e) {
+        statusDot.className = 'brand-dot offline';
+      }
+    }
+    pollStats();
+    setInterval(pollStats, 3000);
+  })();
   </script>
 
 </body>
