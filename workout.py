@@ -62,20 +62,26 @@ class PushupCounter:
     # Signal 1: elbow flexion
     UP_ANGLE = 150.0
     DOWN_ANGLE = 110.0
-    # Signal 2: body vertical travel (auto-ranging)
-    MIN_VERTICAL_RANGE = 0.045
+    # Signal 2: body vertical travel (auto-ranging) — least specific, biggest noise source
+    MIN_VERTICAL_RANGE = 0.08    # raised from 0.045 to require more decisive motion
     V_DOWN_RATIO = 0.62
     V_UP_RATIO = 0.30
     V_RANGE_DECAY = 0.003
-    # Signal 3: forearm verticality  ⭐ NEW
-    FOREARM_UP_DEG = 22.0    # ≤ this ⇒ arm extended (top)
-    FOREARM_DOWN_DEG = 38.0  # ≥ this ⇒ arm bent (bottom)
+    # Signal 3: forearm verticality
+    FOREARM_UP_DEG = 22.0
+    FOREARM_DOWN_DEG = 38.0
 
     # Smoothing & timing
     SMOOTHING_ALPHA = 0.35
     DEBOUNCE_SEC = 0.45
-    # Visibility (relaxed from Swift original's 0.3 for occlusion tolerance)
     MIN_VISIBILITY = 0.2
+
+    # ⭐ NEW: Posture gate — both wrists must be in the lower half of the frame
+    # (i.e., hands on the floor / desk surface). Filters out leg/body movement
+    # while standing or walking.
+    POSTURE_WRIST_MIN_Y = 0.45    # 0=top of frame, 1=bottom
+    # ⭐ NEW: Sustained-state requirement before applying a state transition
+    SUSTAIN_MS = 250
 
     STATE_UNKNOWN = "unknown"
     STATE_UP = "up"
@@ -94,8 +100,12 @@ class PushupCounter:
         self._current_rep_depth = 180.0
         self._last_count_ts = 0.0
         self._last_landmarks = None
-        # Which signal(s) drove the last state transition (debug)
         self._signal_trigger = ""
+        # ⭐ NEW: sustained-state tracking
+        self._candidate_state = None
+        self._candidate_state_since = 0.0
+        # ⭐ NEW: posture validity
+        self.posture_valid = False
 
     def reset(self):
         cb = self.on_rep
@@ -195,7 +205,6 @@ class PushupCounter:
         is_down = angle_is_down or vert_is_down or forearm_is_down
         is_up = angle_is_up or vert_is_up or forearm_is_up
 
-        # Track which signal(s) is asserting
         triggers = []
         if is_down:
             if angle_is_down: triggers.append("ang↓")
@@ -207,25 +216,57 @@ class PushupCounter:
             if forearm_is_up: triggers.append("fa↑")
         self._signal_trigger = "+".join(triggers) if triggers else ""
 
-        new_state = self.state
-        if is_up:
-            new_state = self.STATE_UP
-        elif is_down:
-            new_state = self.STATE_DOWN
+        # ===== ⭐ Posture gate: hands on the floor? =====
+        posture_valid = False
+        wrist_ys = [w[1] for w in (lw, rw) if w is not None]
+        if wrist_ys:
+            # Both (or only-visible) wrists must be in the lower half of the frame
+            if all(y >= self.POSTURE_WRIST_MIN_Y for y in wrist_ys):
+                posture_valid = True
+        self.posture_valid = posture_valid
 
-        if self.state == self.STATE_DOWN and new_state == self.STATE_UP:
-            if timestamp - self._last_count_ts >= self.DEBOUNCE_SEC:
-                self.count += 1
-                self._last_count_ts = timestamp
-                self.last_rep_depth = self._current_rep_depth
-                if self.on_rep:
-                    try:
-                        self.on_rep(self.count)
-                    except Exception:
-                        pass
+        if not posture_valid:
+            # Not in push-up position — drop to UNKNOWN and reset transition tracking
+            self.state = self.STATE_UNKNOWN
+            self._candidate_state = None
             self._current_rep_depth = 180.0
+            return
 
-        self.state = new_state
+        # ===== Determine proposed state =====
+        proposed = None
+        if is_up:
+            proposed = self.STATE_UP
+        elif is_down:
+            proposed = self.STATE_DOWN
+        # else: dead zone, no proposal
+
+        if proposed is None or proposed == self.state:
+            self._candidate_state = None
+            return
+
+        # ===== ⭐ Sustained-state requirement =====
+        if self._candidate_state == proposed:
+            # Same proposal as before — check if sustained long enough
+            elapsed_ms = (timestamp - self._candidate_state_since) * 1000
+            if elapsed_ms >= self.SUSTAIN_MS:
+                # Apply transition
+                if self.state == self.STATE_DOWN and proposed == self.STATE_UP:
+                    if timestamp - self._last_count_ts >= self.DEBOUNCE_SEC:
+                        self.count += 1
+                        self._last_count_ts = timestamp
+                        self.last_rep_depth = self._current_rep_depth
+                        if self.on_rep:
+                            try:
+                                self.on_rep(self.count)
+                            except Exception:
+                                pass
+                    self._current_rep_depth = 180.0
+                self.state = proposed
+                self._candidate_state = None
+        else:
+            # New candidate, start timer
+            self._candidate_state = proposed
+            self._candidate_state_since = timestamp
 
     def snapshot(self):
         snap = {
@@ -236,6 +277,8 @@ class PushupCounter:
             "vertical_ratio": round(self.vertical_ratio, 3) if self.vertical_ratio is not None else None,
             "last_rep_depth": round(self.last_rep_depth, 1) if self.last_rep_depth is not None else None,
             "trigger": self._signal_trigger,
+            "posture": self.posture_valid,
+            "candidate": self._candidate_state,
         }
         if self._last_landmarks is not None:
             try:

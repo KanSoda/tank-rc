@@ -152,6 +152,7 @@
   <div class="top">
     <a href="/">← BACK</a>
     <div class="debug">
+      <span id="posture-tag" style="background:rgba(239,68,68,0.7); padding:2px 6px; border-radius:4px; color:#fff;">POSTURE</span>
       <span>FPS:<span id="fps">--</span></span>
       <span>ANG:<span id="angle">--</span></span>
       <span>FA:<span id="forearm">--</span></span>
@@ -251,6 +252,14 @@
         $('forearm').textContent = s.forearm != null ? s.forearm + '°' : '--';
         vratioEl.textContent = s.vertical_ratio != null ? s.vertical_ratio : '--';
         $('trigger').textContent = s.trigger || '';
+        const ptag = $('posture-tag');
+        if (s.posture) {
+          ptag.style.background = 'rgba(74,222,128,0.85)';
+          ptag.textContent = 'POSTURE✓';
+        } else {
+          ptag.style.background = 'rgba(239,68,68,0.7)';
+          ptag.textContent = 'POSTURE✗';
+        }
         if (s.vis) {
           $('vls').textContent = s.vis.L_sh; $('vle').textContent = s.vis.L_el; $('vlw').textContent = s.vis.L_wr;
           $('vrs').textContent = s.vis.R_sh; $('vre').textContent = s.vis.R_el; $('vrw').textContent = s.vis.R_wr;
