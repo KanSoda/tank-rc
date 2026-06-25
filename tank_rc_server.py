@@ -320,10 +320,10 @@ def _get_pose():
         _np = np_mod
         _pose_detector = mp.solutions.pose.Pose(
             static_image_mode=False,
-            model_complexity=0,  # 0 = Lite (fast on Pi 4)
+            model_complexity=0,           # 0 = Lite (fast on Pi 4)
             smooth_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5,
+            min_detection_confidence=0.3, # relaxed (was 0.5) for partial visibility
+            min_tracking_confidence=0.3,  # relaxed
         )
     return _pose_detector
 
