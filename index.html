@@ -2,596 +2,432 @@
 <html lang="ja">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#000000">
   <title>Tank RC</title>
   <style>
-    :root {
-      --bg: #0a0a0c;
-      --panel: #15161a;
-      --border: #2a2c33;
-      --text: #e8e8ea;
-      --muted: #6b6e76;
-      --accent: #4ade80;
-      --warning: #f59e0b;
-      --danger: #ef4444;
-      --primary: #3b82f6;
-      --shadow: 0 8px 32px rgba(0,0,0,0.5);
-    }
-    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; }
-    body {
-      background: var(--bg);
-      color: var(--text);
-      font-family: -apple-system, BlinkMacSystemFont, "SF Pro", system-ui, sans-serif;
-      min-height: 100vh;
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; -webkit-user-select: none; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #000;
+      color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
       overflow: hidden;
+      overscroll-behavior: none;
+      touch-action: none;
     }
 
-    .topbar {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 14px 20px;
-      background: var(--panel);
-      border-bottom: 1px solid var(--border);
-    }
-    .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: 0.08em; font-size: 14px; }
-    .brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
-    .brand-dot.online { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
-    .brand-dot.offline { background: var(--danger); }
-    .stats { display: flex; gap: 14px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
-    .stat-value { color: var(--text); font-weight: 500; }
-
-    .camera {
-      position: relative;
-      width: 100%;
-      aspect-ratio: 4/3;
-      max-height: 55vh;
-      background: linear-gradient(135deg, #1a1c22 0%, #0e0f12 100%);
-      display: flex; align-items: center; justify-content: center;
+    /* ===== Camera as fullscreen background ===== */
+    .camera-bg {
+      position: fixed;
+      inset: 0;
+      width: 100vw; height: 100vh;
+      background: #000;
+      z-index: 0;
       overflow: hidden;
     }
-    .camera-placeholder {
+    .camera-bg img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+    .camera-bg img.hidden { opacity: 0; }
+    .camera-bg::after {
+      content: '';
       position: absolute;
-      color: var(--muted); font-size: 13px; text-align: center;
+      inset: 0;
+      background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.35) 100%);
       pointer-events: none;
     }
-    .camera-placeholder span { font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.4; }
-    .camera img { width: 100%; height: 100%; object-fit: cover; display: block; position: relative; z-index: 1; }
-    .camera img.hidden { display: none; }
-    .live-badge {
-      position: absolute; top: 12px; left: 12px;
-      display: flex; align-items: center; gap: 6px;
-      padding: 4px 10px; background: rgba(0,0,0,0.6);
-      border-radius: 4px; font-size: 10px; letter-spacing: 0.1em; font-weight: 600;
-      z-index: 2;
-    }
-    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); animation: pulse 1.4s infinite; }
-    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
-    .crosshair {
-      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
-      width: 40px; height: 40px; opacity: 0.4; z-index: 2; pointer-events: none;
-    }
-    .crosshair::before, .crosshair::after {
-      content: ''; position: absolute; background: var(--accent);
-    }
-    .crosshair::before { left: 50%; top: 0; bottom: 0; width: 1px; transform: translateX(-50%); }
-    .crosshair::after { top: 50%; left: 0; right: 0; height: 1px; transform: translateY(-50%); }
 
-    .controls {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      padding: 20px;
-      height: calc(45vh - 60px);
-      min-height: 280px;
+    .cam-status {
+      position: absolute;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      color: rgba(255,255,255,0.4);
+      font-size: 13px;
+      letter-spacing: 0.1em;
+      text-align: center;
+      pointer-events: none;
+    }
+    .cam-status .pulse {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: rgba(255,255,255,0.6);
+      margin: 0 auto 12px;
+      animation: pulse 1.6s infinite ease-in-out;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 0.3; transform: scale(1); }
+      50% { opacity: 1; transform: scale(1.4); }
     }
 
-    .joystick-area {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      position: relative;
-      display: flex; align-items: center; justify-content: center;
+    /* ===== Status dot (top-right) ===== */
+    .status {
+      position: fixed;
+      top: env(safe-area-inset-top, 14px);
+      right: 18px;
+      padding: 6px 10px;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 999px;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      color: rgba(255,255,255,0.7);
+      z-index: 10;
+      margin-top: 8px;
+    }
+    .status-dot {
+      width: 6px; height: 6px;
+      border-radius: 50%;
+      background: #4ade80;
+      box-shadow: 0 0 6px #4ade80;
+      transition: background 0.3s, box-shadow 0.3s;
+    }
+    .status-dot.offline { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
+    .status-dot.connecting { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; animation: pulse 1.4s infinite; }
+
+    /* ===== Joystick (bottom-center) ===== */
+    .joystick {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
+      left: 50%;
+      transform: translateX(-50%);
+      width: 180px; height: 180px;
+      z-index: 10;
     }
     .joystick-base {
-      width: 70%; aspect-ratio: 1; max-width: 200px;
+      width: 100%; height: 100%;
       border-radius: 50%;
-      background: radial-gradient(circle at center, #1f2027 0%, #0c0d10 100%);
-      border: 2px solid var(--border);
+      background: rgba(255,255,255,0.06);
+      backdrop-filter: blur(24px) saturate(140%);
+      -webkit-backdrop-filter: blur(24px) saturate(140%);
+      border: 1px solid rgba(255,255,255,0.12);
+      box-shadow: 0 8px 32px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.06);
       position: relative;
       display: flex; align-items: center; justify-content: center;
+      touch-action: none;
     }
     .joystick-base::before {
       content: '';
       position: absolute;
-      inset: 12px;
-      border: 1px dashed rgba(255,255,255,0.06);
+      inset: 16px;
       border-radius: 50%;
+      border: 1px dashed rgba(255,255,255,0.08);
     }
     .joystick-stick {
-      width: 35%; aspect-ratio: 1; max-width: 70px;
+      width: 64px; height: 64px;
       border-radius: 50%;
-      background: radial-gradient(circle at 35% 35%, #4d5260 0%, #2b2e36 100%);
-      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.1);
-      cursor: grab;
-      transition: transform 0.1s, background 0.1s;
+      background: rgba(255,255,255,0.92);
+      box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 -2px 4px rgba(0,0,0,0.1);
+      transition: transform 0.15s cubic-bezier(0.2, 0.9, 0.3, 1);
+      pointer-events: none;
+    }
+    .joystick.active .joystick-stick {
+      transition: none;
+      background: #ffffff;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.5), 0 0 0 4px rgba(255,255,255,0.1);
     }
     .joystick-label {
-      position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
-      font-size: 10px; color: var(--muted); letter-spacing: 0.1em;
-    }
-    .dpad-marker {
       position: absolute;
-      color: var(--muted);
-      font-size: 11px;
-      font-weight: 600;
+      bottom: -26px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 9px;
+      letter-spacing: 0.2em;
+      color: rgba(255,255,255,0.35);
+      white-space: nowrap;
     }
-    .dpad-marker.up { top: 8px; left: 50%; transform: translateX(-50%); }
-    .dpad-marker.down { bottom: 8px; left: 50%; transform: translateX(-50%); }
-    .dpad-marker.left { left: 8px; top: 50%; transform: translateY(-50%); }
-    .dpad-marker.right { right: 8px; top: 50%; transform: translateY(-50%); }
 
-    .actions {
-      background: var(--panel);
-      border: 1px solid var(--border);
-      border-radius: 16px;
-      padding: 16px;
-      display: grid;
-      grid-template-columns: 1fr 1fr;
-      gap: 12px;
-      align-content: start;
-    }
-    .actions-title {
-      grid-column: 1 / -1;
-      font-size: 10px;
-      color: var(--muted);
-      letter-spacing: 0.15em;
-      font-weight: 600;
-      margin-bottom: 4px;
-    }
-    .btn {
-      padding: 14px 8px;
-      background: linear-gradient(180deg, #21232b 0%, #15171c 100%);
-      border: 1px solid var(--border);
-      border-radius: 10px;
-      color: var(--text);
-      font-size: 12px;
-      font-weight: 500;
-      cursor: pointer;
-      display: flex; flex-direction: column; align-items: center; gap: 4px;
-      transition: all 0.15s;
-    }
-    .btn:active { transform: scale(0.96); border-color: var(--primary); }
-    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
-    .btn-icon { font-size: 20px; }
-    .btn-label { font-size: 10px; color: var(--muted); letter-spacing: 0.05em; }
-    .btn.primary { border-color: var(--primary); }
-    .btn.warning { border-color: var(--warning); }
-    .btn.danger { border-color: var(--danger); }
-    .btn.active { background: linear-gradient(180deg, #2d3344 0%, #1a1f2e 100%); }
-
-    .toolbar {
-      position: fixed; bottom: 0; left: 0; right: 0;
-      display: flex; justify-content: space-between; align-items: center;
-      padding: 10px 20px;
-      background: var(--panel);
-      border-top: 1px solid var(--border);
-      font-size: 11px;
-      color: var(--muted);
-    }
-    .speed-control { display: flex; align-items: center; gap: 8px; }
-    .speed-control input[type="range"] { width: 100px; }
-    .e-stop, .reload-btn {
-      padding: 8px 16px;
-      border: none;
-      border-radius: 6px;
-      font-size: 11px;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      cursor: pointer;
-    }
-    .e-stop { background: var(--danger); color: white; }
-    .reload-btn { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
-    .reload-btn.spinning { color: var(--accent); border-color: var(--accent); }
-    .toolbar-right { display: flex; gap: 8px; align-items: center; }
-
-    .offline-overlay {
+    /* ===== Offline overlay (minimal) ===== */
+    .offline {
       position: fixed; inset: 0;
-      background: rgba(10,10,12,0.92);
+      background: rgba(0,0,0,0.85);
+      backdrop-filter: blur(8px);
+      -webkit-backdrop-filter: blur(8px);
       display: none;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      z-index: 1000;
-      padding: 20px;
-      text-align: center;
+      z-index: 100;
+      padding: 24px;
     }
-    .offline-overlay.visible { display: flex; }
-    .offline-overlay h2 { font-size: 22px; color: var(--danger); margin-bottom: 12px; font-weight: 600; }
-    .offline-overlay p { color: var(--muted); font-size: 13px; line-height: 1.7; margin-bottom: 6px; max-width: 420px; }
-    .offline-overlay .spinner {
-      width: 32px; height: 32px;
-      border: 3px solid var(--border);
-      border-top-color: var(--accent);
+    .offline.visible { display: flex; }
+    .offline h2 { font-size: 14px; letter-spacing: 0.2em; color: rgba(255,255,255,0.7); margin-bottom: 18px; font-weight: 500; }
+    .offline .spinner {
+      width: 28px; height: 28px;
+      border: 2px solid rgba(255,255,255,0.1);
+      border-top-color: rgba(255,255,255,0.7);
       border-radius: 50%;
-      animation: spin 1s linear infinite;
-      margin: 16px 0;
+      animation: spin 0.9s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-    .offline-overlay button {
-      margin-top: 16px;
-      padding: 10px 20px;
-      background: var(--primary);
-      color: white;
-      border: none;
-      border-radius: 6px;
-      font-size: 12px;
-      font-weight: 600;
-      letter-spacing: 0.05em;
-      cursor: pointer;
-    }
 
-    @media (max-width: 480px) {
-      .camera { aspect-ratio: 16/12; max-height: 45vh; }
-      .controls { padding: 14px; gap: 12px; }
+    /* ===== Speed indicator (subtle, top-left) ===== */
+    .speed-indicator {
+      position: fixed;
+      top: env(safe-area-inset-top, 14px);
+      left: 18px;
+      margin-top: 8px;
+      padding: 6px 10px;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border-radius: 999px;
+      font-size: 10px;
+      letter-spacing: 0.08em;
+      color: rgba(255,255,255,0.5);
+      z-index: 10;
+      opacity: 0;
+      transition: opacity 0.3s;
+      font-variant-numeric: tabular-nums;
     }
-    @media (orientation: landscape) and (max-height: 500px) {
-      body { display: grid; grid-template-columns: 1.5fr 1fr; height: 100vh; }
-      .topbar { grid-column: 1/-1; }
-      .camera { max-height: 100%; aspect-ratio: auto; height: 100%; }
-      .controls { height: auto; padding: 16px; }
-    }
+    .speed-indicator.visible { opacity: 1; }
   </style>
 </head>
 <body>
 
-  <header class="topbar">
-    <div class="brand"><span class="brand-dot" id="status-dot"></span><span id="brand-label">TANK RC</span></div>
-    <div class="stats">
-      <div><span class="stat-value" id="stat-mode">--</span></div>
-      <div><span class="stat-value" id="stat-cpu">--</span>°C</div>
-      <div><span class="stat-value" id="stat-ping">--</span> ms</div>
+  <div class="camera-bg">
+    <div class="cam-status" id="cam-status">
+      <div class="pulse"></div>
+      CONNECTING
     </div>
-  </header>
-
-  <section class="camera">
-    <div class="camera-placeholder" id="cam-placeholder">
-      <span>📷</span>
-      Connecting to camera...<br>
-      <small style="opacity: 0.5;" id="cam-url-label"></small>
-    </div>
-    <img id="cam" class="hidden" alt="Live stream">
-    <div class="live-badge"><span class="live-dot"></span>LIVE</div>
-    <div class="crosshair"></div>
-  </section>
-
-  <section class="controls">
-    <div class="joystick-area">
-      <div class="dpad-marker up">▲</div>
-      <div class="dpad-marker down">▼</div>
-      <div class="dpad-marker left">◀</div>
-      <div class="dpad-marker right">▶</div>
-      <div class="joystick-base">
-        <div class="joystick-stick" id="stick"></div>
-        <div class="joystick-label">MOVE · ← ↑ → ↓</div>
-      </div>
-    </div>
-
-    <div class="actions">
-      <div class="actions-title">ACTIONS</div>
-      <button class="btn primary" id="btn-open">
-        <span class="btn-icon">🪟</span>
-        <span>Open Curtain</span>
-        <span class="btn-label">curtain.py</span>
-      </button>
-      <button class="btn" id="btn-close">
-        <span class="btn-icon">🔄</span>
-        <span>Close</span>
-        <span class="btn-label">reverse</span>
-      </button>
-      <button class="btn" id="btn-snapshot">
-        <span class="btn-icon">📸</span>
-        <span>Snapshot</span>
-        <span class="btn-label">save .jpg</span>
-      </button>
-      <button class="btn warning" id="btn-led">
-        <span class="btn-icon">💡</span>
-        <span>LED</span>
-        <span class="btn-label">toggle</span>
-      </button>
-    </div>
-  </section>
-
-  <footer class="toolbar">
-    <div class="speed-control">
-      <span>SPEED</span>
-      <input type="range" min="500" max="2000" step="50" value="1200" id="speed">
-      <span class="stat-value" id="speed-out">1200</span>
-    </div>
-    <div class="toolbar-right">
-      <button class="reload-btn" id="reload-btn" title="カメラと接続を再試行">↻ RELOAD</button>
-      <button class="e-stop" id="estop">⏹ E-STOP</button>
-    </div>
-  </footer>
-
-  <div class="offline-overlay" id="offline-overlay">
-    <h2>⚠ OFFLINE</h2>
-    <p>Pi に接続できません。</p>
-    <p><strong>確認:</strong> 電源(USB-C / バッテリー)が入っているか、Wi-Fi 圏内か</p>
-    <div class="spinner"></div>
-    <p style="font-size: 11px; opacity: 0.6;">自動で再接続を試みています…</p>
-    <button id="overlay-reload">手動リロード</button>
+    <img id="cam" class="hidden" alt="">
   </div>
 
-  <div id="toast" style="position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: var(--text); padding: 8px 16px; border-radius: 6px; font-size: 12px; letter-spacing: 0.05em; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 100;"></div>
+  <div class="status">
+    <span class="status-dot connecting" id="status-dot"></span>
+    <span id="status-text">--</span>
+  </div>
+
+  <div class="speed-indicator" id="speed-indicator">
+    L:<span id="readout-l">0</span> R:<span id="readout-r">0</span>
+  </div>
+
+  <div class="joystick" id="joystick">
+    <div class="joystick-base" id="joy-base">
+      <div class="joystick-stick" id="joy-stick"></div>
+    </div>
+    <div class="joystick-label">DRIVE</div>
+  </div>
+
+  <div class="offline" id="offline">
+    <h2>OFFLINE</h2>
+    <div class="spinner"></div>
+  </div>
 
   <script>
   (function () {
-    // ===== URL detection =====
-    // Pi-hosted (LAN): use same origin. Vercel: point to raspberrypi.local:8000.
     const HOST = location.hostname;
-    const IS_LOCAL = HOST === 'raspberrypi.local'
-                  || HOST === 'localhost'
-                  || HOST === ''
-                  || /^\d+\.\d+\.\d+\.\d+$/.test(HOST);
+    const IS_LOCAL = HOST === 'raspberrypi.local' || HOST === 'localhost' || HOST === '' || /^\d+\.\d+\.\d+\.\d+$/.test(HOST);
     const PI_BASE = IS_LOCAL ? '' : 'http://raspberrypi.local:8000';
-    const MODE = IS_LOCAL ? 'LOCAL' : 'REMOTE';
 
-    // ===== DOM =====
     const $ = (id) => document.getElementById(id);
-    const stick = $('stick');
-    const toast = $('toast');
-    const estop = $('estop');
     const cam = $('cam');
-    const camPlaceholder = $('cam-placeholder');
-    const camUrlLabel = $('cam-url-label');
-    const speedInput = $('speed');
-    const speedOut = $('speed-out');
+    const camStatus = $('cam-status');
     const statusDot = $('status-dot');
-    const statMode = $('stat-mode');
-    const statCpu = $('stat-cpu');
-    const statPing = $('stat-ping');
+    const statusText = $('status-text');
+    const speedIndicator = $('speed-indicator');
+    const readoutL = $('readout-l');
+    const readoutR = $('readout-r');
+    const joystick = $('joystick');
+    const joyBase = $('joy-base');
+    const joyStick = $('joy-stick');
+    const offline = $('offline');
 
-    statMode.textContent = MODE;
-    camUrlLabel.textContent = (PI_BASE || location.origin) + '/stream.mjpg';
+    // ===== Speed config (URL param overridable) =====
+    const params = new URLSearchParams(location.search);
+    const MAX_SPEED = Math.max(500, Math.min(2000, parseInt(params.get('speed')) || 1500));
 
     // ===== Camera =====
     let camRetryTimer = null;
     function reloadCamera() {
       cam.classList.add('hidden');
-      camPlaceholder.style.display = 'block';
+      camStatus.style.display = '';
       cam.src = (PI_BASE || '') + '/stream.mjpg?t=' + Date.now();
     }
     cam.addEventListener('load', () => {
       cam.classList.remove('hidden');
-      camPlaceholder.style.display = 'none';
+      camStatus.style.display = 'none';
       if (camRetryTimer) { clearTimeout(camRetryTimer); camRetryTimer = null; }
     });
     cam.addEventListener('error', () => {
       cam.classList.add('hidden');
-      camPlaceholder.style.display = 'block';
-      camPlaceholder.querySelector('span').textContent = '⚠️';
+      camStatus.style.display = '';
       if (!camRetryTimer) {
-        camRetryTimer = setTimeout(() => {
-          camRetryTimer = null;
-          reloadCamera();
-        }, 3000);
+        camRetryTimer = setTimeout(() => { camRetryTimer = null; reloadCamera(); }, 3000);
       }
     });
     reloadCamera();
 
-    // ===== State =====
-    const TRAVEL = 28;
-    const held = new Set();
-    let moveLoop = null;
-    let lastSent = { left: null, right: null };
-    let toastTimer = null;
-    let ledOn = false;
+    // ===== Joystick =====
+    let dragging = false;
+    let baseRect = null;
+    const MAX_R = 60;
+    const DEAD_ZONE = 0.08;
 
-    // ===== Toast =====
-    function showToast(msg) {
-      toast.textContent = msg;
-      toast.style.opacity = '1';
-      clearTimeout(toastTimer);
-      toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 900);
+    function clamp(v, mn, mx) { return Math.max(mn, Math.min(mx, v)); }
+
+    function startDrag(clientX, clientY) {
+      dragging = true;
+      baseRect = joyBase.getBoundingClientRect();
+      joystick.classList.add('active');
+      moveDrag(clientX, clientY);
+      if (navigator.vibrate) navigator.vibrate(8);
     }
 
-    // ===== Joystick visual =====
-    function updateStick() {
-      let x = 0, y = 0;
-      if (held.has('up')) y -= 1;
-      if (held.has('down')) y += 1;
-      if (held.has('left')) x -= 1;
-      if (held.has('right')) x += 1;
-      const mag = Math.hypot(x, y) || 1;
-      const nx = (x / mag) * TRAVEL;
-      const ny = (y / mag) * TRAVEL;
-      stick.style.transform = `translate(${nx}px, ${ny}px)`;
-      stick.style.background = (x || y)
-        ? 'radial-gradient(circle at 35% 35%, #5b8def 0%, #2848aa 100%)'
-        : '';
-    }
-
-    // ===== Motor command =====
-    function computeMotors() {
-      const speed = parseInt(speedInput.value);
-      let L = 0, R = 0;
-      if (held.has('up')) { L += speed; R += speed; }
-      if (held.has('down')) { L -= speed; R -= speed; }
-      if (held.has('left')) { L -= speed; R += speed; }
-      if (held.has('right')) { L += speed; R -= speed; }
-      L = Math.max(-2000, Math.min(2000, L));
-      R = Math.max(-2000, Math.min(2000, R));
-      return { L, R };
-    }
-
-    async function sendMove(L, R) {
-      // 重複スキップしない: キー押下中はキープアライブとして 10Hz で送り続ける
-      // (Pi 側の Safety Watchdog 500ms を満たすため)
-      lastSent = { left: L, right: R };
-      const t0 = performance.now();
-      try {
-        const res = await fetch(PI_BASE + '/move?left=' + L + '&right=' + R, { method: 'POST' });
-        if (res.ok) {
-          statusDot.className = 'brand-dot online';
-          statPing.textContent = Math.round(performance.now() - t0);
-        } else {
-          statusDot.className = 'brand-dot offline';
-        }
-      } catch (e) {
-        statusDot.className = 'brand-dot offline';
-        statPing.textContent = '--';
+    function moveDrag(clientX, clientY) {
+      if (!dragging || !baseRect) return;
+      const cx = baseRect.left + baseRect.width / 2;
+      const cy = baseRect.top + baseRect.height / 2;
+      let dx = clientX - cx;
+      let dy = clientY - cy;
+      const dist = Math.hypot(dx, dy);
+      if (dist > MAX_R) {
+        dx = (dx / dist) * MAX_R;
+        dy = (dy / dist) * MAX_R;
       }
+      joyStick.style.transform = `translate(${dx}px, ${dy}px)`;
+
+      const normX = dx / MAX_R;
+      const normY = -dy / MAX_R; // up = forward
+      const mag = Math.hypot(normX, normY);
+      if (mag < DEAD_ZONE) {
+        sendMove(0, 0);
+        return;
+      }
+      const L = Math.round(clamp(MAX_SPEED * (normY + normX), -2000, 2000));
+      const R = Math.round(clamp(MAX_SPEED * (normY - normX), -2000, 2000));
+      sendMove(L, R);
     }
 
-    function ensureMoveLoop() {
-      if (moveLoop !== null) return;
-      moveLoop = setInterval(() => {
-        if (held.size === 0) {
-          clearInterval(moveLoop);
-          moveLoop = null;
-          sendMove(0, 0);
-          return;
-        }
-        const { L, R } = computeMotors();
+    function endDrag() {
+      if (!dragging) return;
+      dragging = false;
+      joystick.classList.remove('active');
+      joyStick.style.transform = '';
+      sendMove(0, 0);
+    }
+
+    joyBase.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      const t = e.touches[0];
+      startDrag(t.clientX, t.clientY);
+    }, { passive: false });
+    window.addEventListener('touchmove', (e) => {
+      if (!dragging) return;
+      e.preventDefault();
+      const t = e.touches[0];
+      moveDrag(t.clientX, t.clientY);
+    }, { passive: false });
+    window.addEventListener('touchend', endDrag);
+    window.addEventListener('touchcancel', endDrag);
+
+    joyBase.addEventListener('mousedown', (e) => {
+      e.preventDefault();
+      startDrag(e.clientX, e.clientY);
+    });
+    window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
+    window.addEventListener('mouseup', endDrag);
+
+    // ===== Keyboard fallback (for desktop testing) =====
+    const held = new Set();
+    let keyLoop = null;
+    const KEY_MAP = {
+      'ArrowUp':'up','w':'up','W':'up',
+      'ArrowDown':'down','s':'down','S':'down',
+      'ArrowLeft':'left','a':'left','A':'left',
+      'ArrowRight':'right','d':'right','D':'right',
+    };
+    function keyMotors() {
+      let L=0,R=0;
+      if (held.has('up')) { L += MAX_SPEED; R += MAX_SPEED; }
+      if (held.has('down')) { L -= MAX_SPEED; R -= MAX_SPEED; }
+      if (held.has('left')) { L -= MAX_SPEED; R += MAX_SPEED; }
+      if (held.has('right')) { L += MAX_SPEED; R -= MAX_SPEED; }
+      return { L: clamp(L, -2000, 2000), R: clamp(R, -2000, 2000) };
+    }
+    function ensureKeyLoop() {
+      if (keyLoop) return;
+      keyLoop = setInterval(() => {
+        if (held.size === 0) { clearInterval(keyLoop); keyLoop = null; sendMove(0, 0); return; }
+        const { L, R } = keyMotors();
         sendMove(L, R);
       }, 100);
     }
-
-    function dirLabel() {
-      const v = held.has('up') ? 'FWD' : held.has('down') ? 'REV' : '';
-      const h = held.has('left') ? 'LEFT' : held.has('right') ? 'RIGHT' : '';
-      return [v, h].filter(Boolean).join(' + ') || 'STOP';
-    }
-
-    // ===== Keyboard =====
-    const KEY_MAP = {
-      'ArrowUp': 'up', 'w': 'up', 'W': 'up',
-      'ArrowDown': 'down', 's': 'down', 'S': 'down',
-      'ArrowLeft': 'left', 'a': 'left', 'A': 'left',
-      'ArrowRight': 'right', 'd': 'right', 'D': 'right',
-    };
-
     document.addEventListener('keydown', (e) => {
-      if (e.key === ' ' || e.code === 'Space') {
-        e.preventDefault();
-        held.clear();
-        updateStick();
-        sendMove(0, 0);
-        showToast('■ STOP');
-        return;
-      }
-      const dir = KEY_MAP[e.key];
-      if (!dir || e.repeat) return;
-      e.preventDefault();
-      held.add(dir);
-      updateStick();
-      ensureMoveLoop();
-      showToast(dirLabel() + ' @ ' + speedInput.value);
+      if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); held.clear(); sendMove(0, 0); return; }
+      const d = KEY_MAP[e.key]; if (!d || e.repeat) return;
+      e.preventDefault(); held.add(d); ensureKeyLoop();
     });
-
     document.addEventListener('keyup', (e) => {
-      const dir = KEY_MAP[e.key];
-      if (!dir) return;
-      e.preventDefault();
-      held.delete(dir);
-      updateStick();
-      if (held.size === 0) showToast('■ STOP');
+      const d = KEY_MAP[e.key]; if (!d) return;
+      e.preventDefault(); held.delete(d);
     });
+    window.addEventListener('blur', () => { held.clear(); sendMove(0, 0); });
 
-    window.addEventListener('blur', () => {
-      held.clear();
-      updateStick();
-      sendMove(0, 0);
-    });
-
-    // ===== Speed =====
-    speedInput.addEventListener('input', () => {
-      speedOut.textContent = speedInput.value;
-    });
-
-    // ===== E-Stop =====
-    estop.addEventListener('click', async () => {
-      held.clear();
-      updateStick();
-      if (moveLoop) { clearInterval(moveLoop); moveLoop = null; }
-      await sendMove(0, 0);
-      showToast('⏹ EMERGENCY STOP');
-    });
-
-    // ===== Action buttons =====
-    async function callApi(path, label) {
-      showToast(label + '...');
+    // ===== Motor send =====
+    let speedIndicatorTimer = null;
+    async function sendMove(L, R) {
+      readoutL.textContent = L;
+      readoutR.textContent = R;
+      if (L !== 0 || R !== 0) {
+        speedIndicator.classList.add('visible');
+        clearTimeout(speedIndicatorTimer);
+      } else {
+        speedIndicatorTimer = setTimeout(() => speedIndicator.classList.remove('visible'), 1500);
+      }
       try {
-        const res = await fetch(PI_BASE + path, { method: 'POST' });
-        const data = await res.json().catch(() => ({}));
-        showToast(label + (data.ok ? ' ✓' : ' ✗'));
-        return data;
+        const res = await fetch(PI_BASE + '/move?left=' + L + '&right=' + R, { method: 'POST' });
+        if (res.ok) {
+          statusDot.className = 'status-dot';
+          statusText.textContent = 'ON';
+        } else {
+          statusDot.className = 'status-dot offline';
+          statusText.textContent = 'ERR';
+        }
       } catch (e) {
-        showToast(label + ' FAILED');
+        statusDot.className = 'status-dot offline';
+        statusText.textContent = 'OFF';
       }
     }
 
-    $('btn-open').addEventListener('click', () => callApi('/curtain/open', 'OPEN CURTAIN'));
-    $('btn-close').addEventListener('click', () => callApi('/curtain/close', 'CLOSE CURTAIN'));
-    $('btn-snapshot').addEventListener('click', () => {
-      window.open(PI_BASE + '/snapshot.jpg', '_blank');
-      showToast('SNAPSHOT');
-    });
-    $('btn-led').addEventListener('click', async () => {
-      const next = ledOn ? 'off' : 'on';
-      const data = await callApi('/led/' + next, 'LED ' + next.toUpperCase());
-      if (data) ledOn = !ledOn;
-      $('btn-led').classList.toggle('active', ledOn);
-    });
-
-    // ===== Stats polling + offline detection =====
-    const offlineOverlay = $('offline-overlay');
+    // ===== Stats / heartbeat =====
     let offlineCount = 0;
     let wasOnline = true;
-
     async function pollStats() {
-      const t0 = performance.now();
       try {
         const res = await fetch(PI_BASE + '/stats', { cache: 'no-store' });
         if (!res.ok) throw new Error();
         const s = await res.json();
-        statusDot.className = 'brand-dot online';
-        if (s.cpu_temp != null) statCpu.textContent = s.cpu_temp.toFixed(1);
-        statPing.textContent = Math.round(performance.now() - t0);
-
-        if (!wasOnline) {
-          showToast('● RECONNECTED');
-          reloadCamera();
-        }
+        if (!wasOnline) reloadCamera();
         wasOnline = true;
         offlineCount = 0;
-        offlineOverlay.classList.remove('visible');
+        offline.classList.remove('visible');
+        statusDot.className = 'status-dot';
+        statusText.textContent = (s.cpu_temp != null) ? Math.round(s.cpu_temp) + '°' : 'ON';
       } catch (e) {
         offlineCount++;
-        statusDot.className = 'brand-dot offline';
-        statPing.textContent = '--';
-        statCpu.textContent = '--';
         if (offlineCount >= 2) {
-          offlineOverlay.classList.add('visible');
+          offline.classList.add('visible');
           wasOnline = false;
         }
+        statusDot.className = 'status-dot offline';
+        statusText.textContent = 'OFF';
       }
     }
     pollStats();
     setInterval(pollStats, 3000);
 
-    // ===== Reload button =====
-    const reloadBtn = $('reload-btn');
-    function manualReload() {
-      reloadBtn.classList.add('spinning');
-      reloadCamera();
-      pollStats();
-      showToast('↻ RELOAD');
-      setTimeout(() => reloadBtn.classList.remove('spinning'), 1500);
-    }
-    reloadBtn.addEventListener('click', manualReload);
-    $('overlay-reload').addEventListener('click', manualReload);
+    // Prevent iOS double-tap zoom
+    document.addEventListener('gesturestart', e => e.preventDefault());
   })();
   </script>
 
