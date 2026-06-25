@@ -26,11 +26,18 @@ from threading import Condition
 from flask import Flask, Response, request, jsonify
 
 sys.path.insert(0, '/home/pi/Freenove_Tank_Robot_Kit_for_Raspberry_Pi/Code/Server')
+sys.path.insert(0, '/home/pi')  # for workout.py
 
 from picamera2 import Picamera2
 from picamera2.encoders import JpegEncoder
 from picamera2.outputs import FileOutput
 from libcamera import Transform
+
+# Lazy MediaPipe + OpenCV imports (slow)
+try:
+    from workout import PushupCounter
+except ImportError:
+    PushupCounter = None
 
 
 # ===== Camera =====
@@ -291,6 +298,164 @@ def stats():
     except Exception:
         pass
     return jsonify(ok=True, cpu_temp=cpu_temp, led=_led_state)
+
+
+# ============ WORKOUT (push-up detection) ============
+_workout_active = False
+_workout_target = 10
+_workout_counter = None
+_workout_fps = 0.0
+_pose_detector = None
+_cv2 = None
+_np = None
+
+
+def _get_pose():
+    global _pose_detector, _cv2, _np
+    if _pose_detector is None:
+        import cv2 as cv2_mod
+        import numpy as np_mod
+        import mediapipe as mp
+        _cv2 = cv2_mod
+        _np = np_mod
+        _pose_detector = mp.solutions.pose.Pose(
+            static_image_mode=False,
+            model_complexity=0,  # 0 = Lite (fast on Pi 4)
+            smooth_landmarks=True,
+            min_detection_confidence=0.5,
+            min_tracking_confidence=0.5,
+        )
+    return _pose_detector
+
+
+def _rep_dance(rep_num):
+    """各レップ検出時の小さな前後ウィグル(可愛い)"""
+    def dance():
+        try:
+            with _motor_lock:
+                m = get_motor()
+                m.setMotorModel(1200, 1200)
+                time.sleep(0.18)
+                m.setMotorModel(-1200, -1200)
+                time.sleep(0.18)
+                m.setMotorModel(0, 0)
+        except Exception:
+            pass
+    threading.Thread(target=dance, daemon=True).start()
+
+
+def _completion_dance():
+    """10レップ達成時のお祝いダンス(スピン)"""
+    def celebrate():
+        try:
+            with _motor_lock:
+                m = get_motor()
+                m.setMotorModel(1500, -1500)
+                time.sleep(0.7)
+                m.setMotorModel(-1500, 1500)
+                time.sleep(0.7)
+                m.setMotorModel(1200, 1200)
+                time.sleep(0.2)
+                m.setMotorModel(-1200, -1200)
+                time.sleep(0.2)
+                m.setMotorModel(0, 0)
+        except Exception:
+            pass
+    threading.Thread(target=celebrate, daemon=True).start()
+
+
+def _workout_loop():
+    """カメラフレームを処理して腕立て伏せをカウントする背景スレッド"""
+    global _workout_active, _workout_fps
+    last_frame_t = time.time()
+    while True:
+        if not _workout_active or _workout_counter is None:
+            time.sleep(0.2)
+            continue
+        with output.condition:
+            output.condition.wait()
+            jpeg = output.frame
+        if jpeg is None:
+            continue
+        try:
+            pose = _get_pose()
+            img = _cv2.imdecode(_np.frombuffer(jpeg, _np.uint8), _cv2.IMREAD_COLOR)
+            if img is None:
+                continue
+            # 解像度落として高速化 (320幅で十分)
+            h, w = img.shape[:2]
+            if w > 320:
+                scale = 320.0 / w
+                img = _cv2.resize(img, (int(w * scale), int(h * scale)))
+            rgb = _cv2.cvtColor(img, _cv2.COLOR_BGR2RGB)
+            rgb.flags.writeable = False
+            result = pose.process(rgb)
+            if result.pose_landmarks:
+                _workout_counter.consume(result.pose_landmarks.landmark)
+                if (_workout_counter.count >= _workout_target
+                        and _workout_active):
+                    _workout_active = False
+                    _completion_dance()
+            now = time.time()
+            dt = now - last_frame_t
+            if dt > 0:
+                _workout_fps = 0.7 * _workout_fps + 0.3 * (1.0 / dt)
+            last_frame_t = now
+        except Exception as e:
+            print(f"workout_loop error: {e}")
+            time.sleep(0.2)
+
+
+threading.Thread(target=_workout_loop, daemon=True).start()
+
+
+@app.route('/workout/start', methods=['POST', 'GET'])
+def workout_start():
+    global _workout_active, _workout_counter, _workout_target
+    if PushupCounter is None:
+        return jsonify(ok=False, error='workout.py module not available'), 500
+    _workout_target = int(request.values.get('target', 10))
+    _workout_counter = PushupCounter(on_rep=_rep_dance)
+    _workout_active = True
+    return jsonify(ok=True, target=_workout_target)
+
+
+@app.route('/workout/stop', methods=['POST', 'GET'])
+def workout_stop():
+    global _workout_active
+    _workout_active = False
+    count = _workout_counter.count if _workout_counter else 0
+    return jsonify(ok=True, count=count)
+
+
+@app.route('/workout/reset', methods=['POST', 'GET'])
+def workout_reset():
+    if _workout_counter:
+        _workout_counter.reset()
+    return jsonify(ok=True)
+
+
+@app.route('/workout/status')
+def workout_status():
+    base = {
+        'active': _workout_active,
+        'target': _workout_target,
+        'fps': round(_workout_fps, 1),
+    }
+    if _workout_counter is None:
+        base.update({'count': 0, 'state': 'idle', 'angle': None, 'vertical_ratio': None})
+        return jsonify(base)
+    base.update(_workout_counter.snapshot())
+    return jsonify(base)
+
+
+@app.route('/workout')
+def workout_page():
+    path = '/home/pi/tank_rc_workout.html'
+    if os.path.exists(path):
+        with open(path, 'r', encoding='utf-8') as f:
+            return f.read()
+    return '<h1>workout.html not found</h1>'
 
 
 if __name__ == '__main__':

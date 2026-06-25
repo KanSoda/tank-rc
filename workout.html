@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#000000">
+  <title>Push-up Counter</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; }
+    html, body {
+      width: 100%; height: 100%;
+      background: #000; color: #fff;
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif;
+      overflow: hidden;
+      touch-action: manipulation;
+    }
+
+    .camera-bg {
+      position: fixed; inset: 0;
+      z-index: 0; background: #000;
+    }
+    .camera-bg img {
+      width: 100%; height: 100%;
+      object-fit: cover;
+      opacity: 0.5;
+    }
+    .camera-bg::after {
+      content: '';
+      position: absolute; inset: 0;
+      background: radial-gradient(ellipse at center, transparent 30%, rgba(0,0,0,0.7) 100%);
+      pointer-events: none;
+    }
+
+    .counter {
+      position: fixed;
+      top: 50%; left: 50%;
+      transform: translate(-50%, -50%);
+      text-align: center;
+      z-index: 10;
+      pointer-events: none;
+    }
+    .counter .num {
+      font-size: 160px;
+      font-weight: 200;
+      line-height: 1;
+      font-variant-numeric: tabular-nums;
+      letter-spacing: -0.05em;
+      text-shadow: 0 4px 32px rgba(0,0,0,0.8);
+      transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1);
+    }
+    .counter.bumped .num { transform: scale(1.15); color: #4ade80; }
+    .counter .target {
+      font-size: 28px;
+      color: rgba(255,255,255,0.45);
+      font-weight: 300;
+      margin-top: 8px;
+      font-variant-numeric: tabular-nums;
+    }
+    .counter .state {
+      margin-top: 20px;
+      font-size: 11px;
+      letter-spacing: 0.3em;
+      color: rgba(255,255,255,0.5);
+      font-weight: 500;
+    }
+    .counter .state.up { color: #4ade80; }
+    .counter .state.down { color: #f59e0b; }
+
+    .top {
+      position: fixed;
+      top: env(safe-area-inset-top, 14px);
+      left: 0; right: 0;
+      padding: 14px 18px 0;
+      display: flex;
+      justify-content: space-between;
+      z-index: 10;
+      font-size: 10px;
+      letter-spacing: 0.12em;
+      color: rgba(255,255,255,0.55);
+      font-variant-numeric: tabular-nums;
+    }
+    .top a {
+      color: rgba(255,255,255,0.55);
+      text-decoration: none;
+      padding: 6px 10px;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(20px);
+      border-radius: 999px;
+    }
+    .debug {
+      padding: 6px 10px;
+      background: rgba(0,0,0,0.4);
+      backdrop-filter: blur(20px);
+      border-radius: 999px;
+      display: flex;
+      gap: 10px;
+    }
+
+    .controls {
+      position: fixed;
+      bottom: calc(env(safe-area-inset-bottom, 0px) + 36px);
+      left: 0; right: 0;
+      display: flex;
+      justify-content: center;
+      gap: 12px;
+      z-index: 10;
+    }
+    .btn {
+      padding: 16px 36px;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: 0.15em;
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: transform 0.1s, background 0.15s;
+      font-family: inherit;
+    }
+    .btn:active { transform: scale(0.95); }
+    .btn-start { background: #4ade80; color: #000; }
+    .btn-stop { background: rgba(255,255,255,0.15); color: #fff; backdrop-filter: blur(20px); }
+    .btn-reset { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.7); backdrop-filter: blur(20px); }
+
+    .celebration {
+      position: fixed; inset: 0;
+      background: rgba(74, 222, 128, 0.95);
+      color: #000;
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 100;
+      font-size: 60px;
+      font-weight: 300;
+      letter-spacing: -0.03em;
+      cursor: pointer;
+    }
+    .celebration.visible { display: flex; animation: celebrate-in 0.4s ease-out; }
+    .celebration .sub { font-size: 16px; font-weight: 500; letter-spacing: 0.2em; margin-top: 20px; opacity: 0.7; }
+    @keyframes celebrate-in {
+      0% { transform: scale(0.8); opacity: 0; }
+      100% { transform: scale(1); opacity: 1; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="camera-bg"><img id="cam" alt=""></div>
+
+  <div class="top">
+    <a href="/">← BACK</a>
+    <div class="debug">
+      <span>FPS: <span id="fps">--</span></span>
+      <span>ANG: <span id="angle">--</span>°</span>
+      <span>V: <span id="vratio">--</span></span>
+    </div>
+  </div>
+
+  <div class="counter" id="counter">
+    <div class="num" id="count">0</div>
+    <div class="target">/ <span id="target">10</span></div>
+    <div class="state" id="state">IDLE</div>
+  </div>
+
+  <div class="controls">
+    <button class="btn btn-start" id="btn-start">START</button>
+    <button class="btn btn-stop" id="btn-stop" style="display:none;">STOP</button>
+    <button class="btn btn-reset" id="btn-reset">RESET</button>
+  </div>
+
+  <div class="celebration" id="celebration">
+    <div>🎉 DONE</div>
+    <div class="sub">TAP TO CLOSE</div>
+  </div>
+
+  <script>
+  (function () {
+    const HOST = location.hostname;
+    const IS_LOCAL = HOST === 'raspberrypi.local' || HOST === 'localhost' || HOST === '' || /^\d+\.\d+\.\d+\.\d+$/.test(HOST);
+    const PI = IS_LOCAL ? '' : 'http://raspberrypi.local:8000';
+
+    const $ = (id) => document.getElementById(id);
+    const cam = $('cam');
+    const countEl = $('count');
+    const targetEl = $('target');
+    const stateEl = $('state');
+    const counterEl = $('counter');
+    const fpsEl = $('fps');
+    const angleEl = $('angle');
+    const vratioEl = $('vratio');
+    const btnStart = $('btn-start');
+    const btnStop = $('btn-stop');
+    const btnReset = $('btn-reset');
+    const celebration = $('celebration');
+
+    cam.src = (PI || '') + '/stream.mjpg?t=' + Date.now();
+    cam.onerror = () => { setTimeout(() => cam.src = (PI || '') + '/stream.mjpg?t=' + Date.now(), 3000); };
+
+    async function call(path, opts = {}) {
+      try {
+        const res = await fetch(PI + path, { method: 'POST', ...opts });
+        return await res.json();
+      } catch (e) {
+        return null;
+      }
+    }
+
+    btnStart.addEventListener('click', async () => {
+      const r = await call('/workout/start?target=10');
+      if (r?.ok) {
+        btnStart.style.display = 'none';
+        btnStop.style.display = '';
+      }
+    });
+    btnStop.addEventListener('click', async () => {
+      await call('/workout/stop');
+      btnStart.style.display = '';
+      btnStop.style.display = 'none';
+    });
+    btnReset.addEventListener('click', async () => {
+      await call('/workout/reset');
+      celebration.classList.remove('visible');
+    });
+    celebration.addEventListener('click', () => celebration.classList.remove('visible'));
+
+    let lastCount = 0;
+    let lastActive = false;
+    async function poll() {
+      try {
+        const res = await fetch(PI + '/workout/status', { cache: 'no-store' });
+        const s = await res.json();
+        countEl.textContent = s.count ?? 0;
+        targetEl.textContent = s.target ?? 10;
+        stateEl.textContent = (s.state || 'IDLE').toUpperCase();
+        stateEl.className = 'state ' + (s.state || '');
+        fpsEl.textContent = s.fps != null ? s.fps : '--';
+        angleEl.textContent = s.angle != null ? s.angle : '--';
+        vratioEl.textContent = s.vertical_ratio != null ? s.vertical_ratio : '--';
+
+        // Bump animation on count increase
+        if (s.count > lastCount) {
+          counterEl.classList.add('bumped');
+          setTimeout(() => counterEl.classList.remove('bumped'), 200);
+          if (navigator.vibrate) navigator.vibrate(40);
+        }
+        // Celebration on target reached
+        if (s.count >= s.target && lastActive && !s.active) {
+          celebration.classList.add('visible');
+          btnStart.style.display = '';
+          btnStop.style.display = 'none';
+        }
+        // UI sync to active state
+        if (s.active && btnStart.style.display !== 'none') {
+          btnStart.style.display = 'none';
+          btnStop.style.display = '';
+        } else if (!s.active && btnStop.style.display !== 'none' && s.count < s.target) {
+          btnStart.style.display = '';
+          btnStop.style.display = 'none';
+        }
+        lastCount = s.count;
+        lastActive = s.active;
+      } catch (e) {
+        fpsEl.textContent = '--';
+      }
+    }
+    poll();
+    setInterval(poll, 200);
+  })();
+  </script>
+
+</body>
+</html>
