@@ -20,7 +20,7 @@
       touch-action: none;
     }
 
-    /* ===== Camera as fullscreen background ===== */
+    /* ===== Camera background ===== */
     .camera-bg {
       position: fixed;
       inset: 0;
@@ -42,7 +42,6 @@
       background: radial-gradient(ellipse at center, transparent 50%, rgba(0,0,0,0.35) 100%);
       pointer-events: none;
     }
-
     .cam-status {
       position: absolute;
       top: 50%; left: 50%;
@@ -65,36 +64,78 @@
       50% { opacity: 1; transform: scale(1.4); }
     }
 
-    /* ===== Status dot (top-right) ===== */
+    /* ===== Top: Speed selector (center) ===== */
+    .speed-selector {
+      position: fixed;
+      top: env(safe-area-inset-top, 14px);
+      left: 50%;
+      transform: translateX(-50%);
+      margin-top: 12px;
+      display: flex;
+      gap: 2px;
+      padding: 3px;
+      background: rgba(0,0,0,0.45);
+      backdrop-filter: blur(24px) saturate(140%);
+      -webkit-backdrop-filter: blur(24px) saturate(140%);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 999px;
+      z-index: 10;
+    }
+    .speed-segment {
+      padding: 7px 16px;
+      font-size: 10px;
+      font-weight: 500;
+      letter-spacing: 0.14em;
+      color: rgba(255,255,255,0.55);
+      background: transparent;
+      border: none;
+      border-radius: 999px;
+      cursor: pointer;
+      transition: background 0.2s ease, color 0.2s ease;
+      font-variant-numeric: tabular-nums;
+      font-family: inherit;
+      min-width: 56px;
+    }
+    .speed-segment.active {
+      background: rgba(255,255,255,0.92);
+      color: #000;
+    }
+    .speed-segment:active:not(.active) {
+      background: rgba(255,255,255,0.12);
+      color: rgba(255,255,255,0.95);
+    }
+
+    /* ===== Top: Status (right) ===== */
     .status {
       position: fixed;
       top: env(safe-area-inset-top, 14px);
       right: 18px;
-      padding: 6px 10px;
+      margin-top: 14px;
+      padding: 5px 9px;
       background: rgba(0,0,0,0.4);
       backdrop-filter: blur(20px);
       -webkit-backdrop-filter: blur(20px);
       border-radius: 999px;
       display: flex;
       align-items: center;
-      gap: 6px;
+      gap: 5px;
       font-size: 10px;
       letter-spacing: 0.08em;
       color: rgba(255,255,255,0.7);
       z-index: 10;
-      margin-top: 8px;
+      font-variant-numeric: tabular-nums;
     }
     .status-dot {
-      width: 6px; height: 6px;
+      width: 5px; height: 5px;
       border-radius: 50%;
       background: #4ade80;
-      box-shadow: 0 0 6px #4ade80;
+      box-shadow: 0 0 5px #4ade80;
       transition: background 0.3s, box-shadow 0.3s;
     }
-    .status-dot.offline { background: #ef4444; box-shadow: 0 0 6px #ef4444; }
-    .status-dot.connecting { background: #f59e0b; box-shadow: 0 0 6px #f59e0b; animation: pulse 1.4s infinite; }
+    .status-dot.offline { background: #ef4444; box-shadow: 0 0 5px #ef4444; }
+    .status-dot.connecting { background: #f59e0b; box-shadow: 0 0 5px #f59e0b; animation: pulse 1.4s infinite; }
 
-    /* ===== Joystick (bottom-center) ===== */
+    /* ===== Joystick ===== */
     .joystick {
       position: fixed;
       bottom: calc(env(safe-area-inset-bottom, 0px) + 80px);
@@ -127,7 +168,7 @@
       border-radius: 50%;
       background: rgba(255,255,255,0.92);
       box-shadow: 0 4px 16px rgba(0,0,0,0.4), inset 0 -2px 4px rgba(0,0,0,0.1);
-      transition: transform 0.15s cubic-bezier(0.2, 0.9, 0.3, 1);
+      transition: transform 0.18s cubic-bezier(0.2, 0.9, 0.3, 1), background 0.15s;
       pointer-events: none;
     }
     .joystick.active .joystick-stick {
@@ -146,7 +187,7 @@
       white-space: nowrap;
     }
 
-    /* ===== Offline overlay (minimal) ===== */
+    /* ===== Offline overlay ===== */
     .offline {
       position: fixed; inset: 0;
       background: rgba(0,0,0,0.85);
@@ -169,27 +210,6 @@
       animation: spin 0.9s linear infinite;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
-
-    /* ===== Speed indicator (subtle, top-left) ===== */
-    .speed-indicator {
-      position: fixed;
-      top: env(safe-area-inset-top, 14px);
-      left: 18px;
-      margin-top: 8px;
-      padding: 6px 10px;
-      background: rgba(0,0,0,0.4);
-      backdrop-filter: blur(20px);
-      -webkit-backdrop-filter: blur(20px);
-      border-radius: 999px;
-      font-size: 10px;
-      letter-spacing: 0.08em;
-      color: rgba(255,255,255,0.5);
-      z-index: 10;
-      opacity: 0;
-      transition: opacity 0.3s;
-      font-variant-numeric: tabular-nums;
-    }
-    .speed-indicator.visible { opacity: 1; }
   </style>
 </head>
 <body>
@@ -202,15 +222,20 @@
     <img id="cam" class="hidden" alt="">
   </div>
 
+  <!-- Top center: speed selector (=メインスピード上限) -->
+  <div class="speed-selector" id="speed-selector">
+    <button class="speed-segment" data-speed="1000">1000</button>
+    <button class="speed-segment active" data-speed="1500">1500</button>
+    <button class="speed-segment" data-speed="2000">2000</button>
+  </div>
+
+  <!-- Top right: connection status -->
   <div class="status">
     <span class="status-dot connecting" id="status-dot"></span>
     <span id="status-text">--</span>
   </div>
 
-  <div class="speed-indicator" id="speed-indicator">
-    L:<span id="readout-l">0</span> R:<span id="readout-r">0</span>
-  </div>
-
+  <!-- Bottom center: joystick -->
   <div class="joystick" id="joystick">
     <div class="joystick-base" id="joy-base">
       <div class="joystick-stick" id="joy-stick"></div>
@@ -234,17 +259,27 @@
     const camStatus = $('cam-status');
     const statusDot = $('status-dot');
     const statusText = $('status-text');
-    const speedIndicator = $('speed-indicator');
-    const readoutL = $('readout-l');
-    const readoutR = $('readout-r');
     const joystick = $('joystick');
     const joyBase = $('joy-base');
     const joyStick = $('joy-stick');
     const offline = $('offline');
+    const selector = $('speed-selector');
 
-    // ===== Speed config (URL param overridable) =====
-    const params = new URLSearchParams(location.search);
-    const MAX_SPEED = Math.max(500, Math.min(2000, parseInt(params.get('speed')) || 1500));
+    // ===== Speed selector =====
+    let maxSpeed = 1500;
+    selector.querySelectorAll('.speed-segment').forEach(btn => {
+      btn.addEventListener('click', () => {
+        maxSpeed = parseInt(btn.dataset.speed);
+        selector.querySelectorAll('.speed-segment').forEach(b => b.classList.toggle('active', b === btn));
+        if (navigator.vibrate) navigator.vibrate(8);
+      });
+    });
+    // URL override
+    const initSpeed = parseInt(new URLSearchParams(location.search).get('speed'));
+    if (initSpeed && [1000, 1500, 2000].includes(initSpeed)) {
+      maxSpeed = initSpeed;
+      selector.querySelectorAll('.speed-segment').forEach(b => b.classList.toggle('active', parseInt(b.dataset.speed) === initSpeed));
+    }
 
     // ===== Camera =====
     let camRetryTimer = null;
@@ -267,13 +302,30 @@
     });
     reloadCamera();
 
-    // ===== Joystick =====
-    let dragging = false;
-    let baseRect = null;
+    // ===== Joystick algorithm =====
+    // Arcade drive + 二乗カーブ + 起動下限保証
+    // 1. dead zone (中央8%は反応しない)
+    // 2. dead zone 外を 0..1 に再マップ
+    // 3. 各軸 (throttle/turn) に二乗カーブを適用、起動下限 35% を加算
+    //    → 浅い傾き = 微速、深い傾き = 高速
+    // 4. arcade drive: L=throttle+turn, R=throttle-turn
+    // 5. オーバーフロー時は両側を比例縮小 (滑らかなカーブ)
     const MAX_R = 60;
     const DEAD_ZONE = 0.08;
+    const MIN_OUTPUT = 0.35;   // ジョイスティック反応開始時の最低スケール (起動電流を確保)
+
+    let dragging = false;
+    let baseRect = null;
 
     function clamp(v, mn, mx) { return Math.max(mn, Math.min(mx, v)); }
+
+    function curve(x) {
+      // sign を保ちつつ二乗カーブ + 下限保証
+      if (x === 0) return 0;
+      const sign = Math.sign(x);
+      const abs = Math.abs(x);
+      return sign * (MIN_OUTPUT + (1 - MIN_OUTPUT) * abs * abs);
+    }
 
     function startDrag(clientX, clientY) {
       dragging = true;
@@ -296,15 +348,35 @@
       }
       joyStick.style.transform = `translate(${dx}px, ${dy}px)`;
 
-      const normX = dx / MAX_R;
-      const normY = -dy / MAX_R; // up = forward
-      const mag = Math.hypot(normX, normY);
+      let nx = dx / MAX_R;
+      let ny = -dy / MAX_R; // 上方向 = 前進
+
+      const mag = Math.hypot(nx, ny);
       if (mag < DEAD_ZONE) {
         sendMove(0, 0);
         return;
       }
-      const L = Math.round(clamp(MAX_SPEED * (normY + normX), -2000, 2000));
-      const R = Math.round(clamp(MAX_SPEED * (normY - normX), -2000, 2000));
+
+      // dead zone 外を 0..1 に再マップ
+      const remapped = (mag - DEAD_ZONE) / (1 - DEAD_ZONE);
+      const scale = remapped / mag;
+      nx *= scale;
+      ny *= scale;
+
+      // 各軸にカーブを適用
+      const throttle = curve(ny);
+      const turn = curve(nx);
+
+      // Arcade drive
+      let L = throttle + turn;
+      let R = throttle - turn;
+
+      // |L|, |R| が 1 を超えたら両方を比例縮小 (滑らかさのため)
+      const m = Math.max(Math.abs(L), Math.abs(R));
+      if (m > 1) { L /= m; R /= m; }
+
+      L = Math.round(clamp(L * maxSpeed, -2000, 2000));
+      R = Math.round(clamp(R * maxSpeed, -2000, 2000));
       sendMove(L, R);
     }
 
@@ -337,7 +409,7 @@
     window.addEventListener('mousemove', (e) => moveDrag(e.clientX, e.clientY));
     window.addEventListener('mouseup', endDrag);
 
-    // ===== Keyboard fallback (for desktop testing) =====
+    // ===== Keyboard fallback (desktop) =====
     const held = new Set();
     let keyLoop = null;
     const KEY_MAP = {
@@ -348,10 +420,10 @@
     };
     function keyMotors() {
       let L=0,R=0;
-      if (held.has('up')) { L += MAX_SPEED; R += MAX_SPEED; }
-      if (held.has('down')) { L -= MAX_SPEED; R -= MAX_SPEED; }
-      if (held.has('left')) { L -= MAX_SPEED; R += MAX_SPEED; }
-      if (held.has('right')) { L += MAX_SPEED; R -= MAX_SPEED; }
+      if (held.has('up')) { L += maxSpeed; R += maxSpeed; }
+      if (held.has('down')) { L -= maxSpeed; R -= maxSpeed; }
+      if (held.has('left')) { L -= maxSpeed; R += maxSpeed; }
+      if (held.has('right')) { L += maxSpeed; R -= maxSpeed; }
       return { L: clamp(L, -2000, 2000), R: clamp(R, -2000, 2000) };
     }
     function ensureKeyLoop() {
@@ -374,32 +446,20 @@
     window.addEventListener('blur', () => { held.clear(); sendMove(0, 0); });
 
     // ===== Motor send =====
-    let speedIndicatorTimer = null;
     async function sendMove(L, R) {
-      readoutL.textContent = L;
-      readoutR.textContent = R;
-      if (L !== 0 || R !== 0) {
-        speedIndicator.classList.add('visible');
-        clearTimeout(speedIndicatorTimer);
-      } else {
-        speedIndicatorTimer = setTimeout(() => speedIndicator.classList.remove('visible'), 1500);
-      }
       try {
         const res = await fetch(PI_BASE + '/move?left=' + L + '&right=' + R, { method: 'POST' });
         if (res.ok) {
           statusDot.className = 'status-dot';
-          statusText.textContent = 'ON';
         } else {
           statusDot.className = 'status-dot offline';
-          statusText.textContent = 'ERR';
         }
       } catch (e) {
         statusDot.className = 'status-dot offline';
-        statusText.textContent = 'OFF';
       }
     }
 
-    // ===== Stats / heartbeat =====
+    // ===== Stats =====
     let offlineCount = 0;
     let wasOnline = true;
     async function pollStats() {
@@ -426,7 +486,6 @@
     pollStats();
     setInterval(pollStats, 3000);
 
-    // Prevent iOS double-tap zoom
     document.addEventListener('gesturestart', e => e.preventDefault());
   })();
   </script>
