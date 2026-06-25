@@ -174,6 +174,7 @@
     <span>│ R sh:<span id="vrs">--</span></span>
     <span>el:<span id="vre">--</span></span>
     <span>wr:<span id="vrw">--</span></span>
+    <span>│ wrY L:<span id="wyl">--</span> R:<span id="wyr">--</span></span>
   </div>
 
   <div class="controls">
@@ -263,6 +264,10 @@
         if (s.vis) {
           $('vls').textContent = s.vis.L_sh; $('vle').textContent = s.vis.L_el; $('vlw').textContent = s.vis.L_wr;
           $('vrs').textContent = s.vis.R_sh; $('vre').textContent = s.vis.R_el; $('vrw').textContent = s.vis.R_wr;
+        }
+        if (s.wrist_y) {
+          $('wyl').textContent = s.wrist_y.L != null ? s.wrist_y.L : '--';
+          $('wyr').textContent = s.wrist_y.R != null ? s.wrist_y.R : '--';
         }
 
         // Bump animation on count increase

@@ -76,11 +76,13 @@ class PushupCounter:
     DEBOUNCE_SEC = 0.45
     MIN_VISIBILITY = 0.2
 
-    # ⭐ NEW: Posture gate — both wrists must be in the lower half of the frame
-    # (i.e., hands on the floor / desk surface). Filters out leg/body movement
-    # while standing or walking.
-    POSTURE_WRIST_MIN_Y = 0.45    # 0=top of frame, 1=bottom
-    # ⭐ NEW: Sustained-state requirement before applying a state transition
+    # Posture gate — wrists must NOT be in the dead center of the frame
+    # (middle = standing/sitting with hands at chest level; either extreme
+    # = hands at floor surface, regardless of whether the camera looks
+    # down at the floor OR up from the floor toward the body)
+    POSTURE_DEAD_MIN = 0.40       # wrist Y in (DEAD_MIN, DEAD_MAX) = invalid
+    POSTURE_DEAD_MAX = 0.60
+    # Sustained-state requirement before applying a state transition
     SUSTAIN_MS = 250
 
     STATE_UNKNOWN = "unknown"
@@ -216,12 +218,16 @@ class PushupCounter:
             if forearm_is_up: triggers.append("fa↑")
         self._signal_trigger = "+".join(triggers) if triggers else ""
 
-        # ===== ⭐ Posture gate: hands on the floor? =====
+        # ===== Posture gate: hands at frame edge (= on a surface)? =====
         posture_valid = False
         wrist_ys = [w[1] for w in (lw, rw) if w is not None]
         if wrist_ys:
-            # Both (or only-visible) wrists must be in the lower half of the frame
-            if all(y >= self.POSTURE_WRIST_MIN_Y for y in wrist_ys):
+            # Wrists must be at one extreme of the frame (top or bottom)
+            # — NOT in the dead center which would be standing/walking
+            if all(
+                (y <= self.POSTURE_DEAD_MIN) or (y >= self.POSTURE_DEAD_MAX)
+                for y in wrist_ys
+            ):
                 posture_valid = True
         self.posture_valid = posture_valid
 
@@ -289,6 +295,10 @@ class PushupCounter:
                     "R_sh": round(float(self._last_landmarks[MPLM.RIGHT_SHOULDER].visibility), 2),
                     "R_el": round(float(self._last_landmarks[MPLM.RIGHT_ELBOW].visibility), 2),
                     "R_wr": round(float(self._last_landmarks[MPLM.RIGHT_WRIST].visibility), 2),
+                }
+                snap["wrist_y"] = {
+                    "L": round(float(self._last_landmarks[MPLM.LEFT_WRIST].y), 2),
+                    "R": round(float(self._last_landmarks[MPLM.RIGHT_WRIST].y), 2),
                 }
             except Exception:
                 pass
