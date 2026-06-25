@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Tank RC</title>
+  <style>
+    :root {
+      --bg: #0a0a0c;
+      --panel: #15161a;
+      --border: #2a2c33;
+      --text: #e8e8ea;
+      --muted: #6b6e76;
+      --accent: #4ade80;
+      --warning: #f59e0b;
+      --danger: #ef4444;
+      --primary: #3b82f6;
+      --shadow: 0 8px 32px rgba(0,0,0,0.5);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; user-select: none; }
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "SF Pro", system-ui, sans-serif;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ===== TOP BAR ===== */
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 20px;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+    }
+    .brand { display: flex; align-items: center; gap: 10px; font-weight: 600; letter-spacing: 0.08em; font-size: 14px; }
+    .brand-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+    .stats { display: flex; gap: 14px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+    .stat-value { color: var(--text); font-weight: 500; }
+
+    /* ===== CAMERA ===== */
+    .camera {
+      position: relative;
+      width: 100%;
+      aspect-ratio: 4/3;
+      max-height: 55vh;
+      background: linear-gradient(135deg, #1a1c22 0%, #0e0f12 100%);
+      display: flex; align-items: center; justify-content: center;
+      overflow: hidden;
+    }
+    .camera-placeholder {
+      color: var(--muted); font-size: 13px; text-align: center;
+    }
+    .camera-placeholder span { font-size: 32px; display: block; margin-bottom: 8px; opacity: 0.4; }
+    .camera img { width: 100%; height: 100%; object-fit: cover; display: block; }
+    .live-badge {
+      position: absolute; top: 12px; left: 12px;
+      display: flex; align-items: center; gap: 6px;
+      padding: 4px 10px; background: rgba(0,0,0,0.6);
+      border-radius: 4px; font-size: 10px; letter-spacing: 0.1em; font-weight: 600;
+    }
+    .live-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--danger); animation: pulse 1.4s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.3} }
+    .crosshair {
+      position: absolute; top: 50%; left: 50%; transform: translate(-50%,-50%);
+      width: 40px; height: 40px; opacity: 0.4;
+    }
+    .crosshair::before, .crosshair::after {
+      content: ''; position: absolute; background: var(--accent);
+    }
+    .crosshair::before { left: 50%; top: 0; bottom: 0; width: 1px; transform: translateX(-50%); }
+    .crosshair::after { top: 50%; left: 0; right: 0; height: 1px; transform: translateY(-50%); }
+
+    /* ===== CONTROL AREA ===== */
+    .controls {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      padding: 20px;
+      height: calc(45vh - 60px);
+      min-height: 280px;
+    }
+
+    /* JOYSTICK */
+    .joystick-area {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .joystick-base {
+      width: 70%; aspect-ratio: 1; max-width: 200px;
+      border-radius: 50%;
+      background: radial-gradient(circle at center, #1f2027 0%, #0c0d10 100%);
+      border: 2px solid var(--border);
+      position: relative;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .joystick-base::before {
+      content: '';
+      position: absolute;
+      inset: 12px;
+      border: 1px dashed rgba(255,255,255,0.06);
+      border-radius: 50%;
+    }
+    .joystick-stick {
+      width: 35%; aspect-ratio: 1; max-width: 70px;
+      border-radius: 50%;
+      background: radial-gradient(circle at 35% 35%, #4d5260 0%, #2b2e36 100%);
+      box-shadow: var(--shadow), inset 0 1px 0 rgba(255,255,255,0.1);
+      cursor: grab;
+      transition: transform 0.1s;
+    }
+    .joystick-label {
+      position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+      font-size: 10px; color: var(--muted); letter-spacing: 0.1em;
+    }
+    .dpad-marker {
+      position: absolute;
+      color: var(--muted);
+      font-size: 11px;
+      font-weight: 600;
+    }
+    .dpad-marker.up { top: 8px; left: 50%; transform: translateX(-50%); }
+    .dpad-marker.down { bottom: 8px; left: 50%; transform: translateX(-50%); }
+    .dpad-marker.left { left: 8px; top: 50%; transform: translateY(-50%); }
+    .dpad-marker.right { right: 8px; top: 50%; transform: translateY(-50%); }
+
+    /* ACTION BUTTONS */
+    .actions {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 16px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      align-content: start;
+    }
+    .actions-title {
+      grid-column: 1 / -1;
+      font-size: 10px;
+      color: var(--muted);
+      letter-spacing: 0.15em;
+      font-weight: 600;
+      margin-bottom: 4px;
+    }
+    .btn {
+      padding: 14px 8px;
+      background: linear-gradient(180deg, #21232b 0%, #15171c 100%);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text);
+      font-size: 12px;
+      font-weight: 500;
+      cursor: pointer;
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      transition: all 0.15s;
+    }
+    .btn:active { transform: scale(0.96); border-color: var(--primary); }
+    .btn-icon { font-size: 20px; }
+    .btn-label { font-size: 10px; color: var(--muted); letter-spacing: 0.05em; }
+    .btn.primary { border-color: var(--primary); }
+    .btn.warning { border-color: var(--warning); }
+    .btn.danger { border-color: var(--danger); }
+
+    /* ===== BOTTOM TOOLBAR ===== */
+    .toolbar {
+      position: fixed; bottom: 0; left: 0; right: 0;
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 10px 20px;
+      background: var(--panel);
+      border-top: 1px solid var(--border);
+      font-size: 11px;
+      color: var(--muted);
+    }
+    .speed-control { display: flex; align-items: center; gap: 8px; }
+    .speed-control input[type="range"] { width: 100px; }
+    .e-stop {
+      padding: 8px 16px;
+      background: var(--danger);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+    }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 480px) {
+      .camera { aspect-ratio: 16/12; max-height: 45vh; }
+      .controls { padding: 14px; gap: 12px; }
+    }
+    @media (orientation: landscape) and (max-height: 500px) {
+      body { display: grid; grid-template-columns: 1.5fr 1fr; height: 100vh; }
+      .topbar { grid-column: 1/-1; }
+      .camera { max-height: 100%; aspect-ratio: auto; height: 100%; }
+      .controls { height: auto; padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <header class="topbar">
+    <div class="brand"><span class="brand-dot"></span>TANK RC</div>
+    <div class="stats">
+      <div><span class="stat-value">0.0</span> km/h</div>
+      <div><span class="stat-value">--</span>% bat</div>
+      <div><span class="stat-value">--</span> ms</div>
+    </div>
+  </header>
+
+  <section class="camera">
+    <div class="camera-placeholder">
+      <span>📷</span>
+      Camera feed<br>
+      <small style="opacity: 0.5;">http://raspberrypi.local:8000/stream.mjpg</small>
+    </div>
+    <div class="live-badge"><span class="live-dot"></span>LIVE</div>
+    <div class="crosshair"></div>
+  </section>
+
+  <section class="controls">
+    <div class="joystick-area">
+      <div class="dpad-marker up">▲</div>
+      <div class="dpad-marker down">▼</div>
+      <div class="dpad-marker left">◀</div>
+      <div class="dpad-marker right">▶</div>
+      <div class="joystick-base">
+        <div class="joystick-stick" id="stick"></div>
+        <div class="joystick-label">MOVE · ← ↑ → ↓</div>
+      </div>
+    </div>
+
+    <div class="actions">
+      <div class="actions-title">ACTIONS</div>
+      <button class="btn primary">
+        <span class="btn-icon">🪟</span>
+        <span>Open Curtain</span>
+        <span class="btn-label">curtain.py</span>
+      </button>
+      <button class="btn">
+        <span class="btn-icon">🔄</span>
+        <span>Close</span>
+        <span class="btn-label">reverse</span>
+      </button>
+      <button class="btn">
+        <span class="btn-icon">📸</span>
+        <span>Snapshot</span>
+        <span class="btn-label">save .jpg</span>
+      </button>
+      <button class="btn warning">
+        <span class="btn-icon">💡</span>
+        <span>LED</span>
+        <span class="btn-label">toggle</span>
+      </button>
+    </div>
+  </section>
+
+  <footer class="toolbar">
+    <div class="speed-control">
+      <span>SPEED</span>
+      <input type="range" min="0" max="2000" value="800">
+      <span class="stat-value" style="color: var(--text);">800</span>
+    </div>
+    <button class="e-stop" id="estop">⏹ E-STOP</button>
+  </footer>
+
+  <div id="toast" style="position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: var(--text); padding: 8px 16px; border-radius: 6px; font-size: 12px; letter-spacing: 0.05em; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 100;"></div>
+
+  <script>
+    (function () {
+      const stick = document.getElementById('stick');
+      const toast = document.getElementById('toast');
+      const estop = document.getElementById('estop');
+      const speedInput = document.querySelector('input[type="range"]');
+      const speedReadout = speedInput.nextElementSibling;
+
+      const TRAVEL = 28; // px stick offset on key press
+      const held = new Set();
+      let toastTimer = null;
+
+      function showToast(msg) {
+        toast.textContent = msg;
+        toast.style.opacity = '1';
+        clearTimeout(toastTimer);
+        toastTimer = setTimeout(() => { toast.style.opacity = '0'; }, 900);
+      }
+
+      function updateStick() {
+        let x = 0, y = 0;
+        if (held.has('up')) y -= 1;
+        if (held.has('down')) y += 1;
+        if (held.has('left')) x -= 1;
+        if (held.has('right')) x += 1;
+        const mag = Math.hypot(x, y) || 1;
+        const nx = (x / mag) * TRAVEL;
+        const ny = (y / mag) * TRAVEL;
+        stick.style.transform = `translate(${nx}px, ${ny}px)`;
+        stick.style.background = (x || y)
+          ? 'radial-gradient(circle at 35% 35%, #5b8def 0%, #2848aa 100%)'
+          : '';
+      }
+
+      function dirLabel() {
+        const v = held.has('up') ? 'FWD' : held.has('down') ? 'REV' : '';
+        const h = held.has('left') ? 'LEFT' : held.has('right') ? 'RIGHT' : '';
+        return [v, h].filter(Boolean).join(' + ') || 'STOP';
+      }
+
+      const KEY_MAP = {
+        'ArrowUp': 'up', 'w': 'up', 'W': 'up',
+        'ArrowDown': 'down', 's': 'down', 'S': 'down',
+        'ArrowLeft': 'left', 'a': 'left', 'A': 'left',
+        'ArrowRight': 'right', 'd': 'right', 'D': 'right',
+      };
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key === ' ' || e.code === 'Space') {
+          e.preventDefault();
+          held.clear();
+          updateStick();
+          showToast('■ STOP');
+          return;
+        }
+        const dir = KEY_MAP[e.key];
+        if (!dir || e.repeat) return;
+        e.preventDefault();
+        held.add(dir);
+        updateStick();
+        showToast(dirLabel() + ' @ ' + speedInput.value);
+      });
+
+      document.addEventListener('keyup', (e) => {
+        const dir = KEY_MAP[e.key];
+        if (!dir) return;
+        e.preventDefault();
+        held.delete(dir);
+        updateStick();
+        if (held.size === 0) showToast('■ STOP');
+      });
+
+      window.addEventListener('blur', () => { held.clear(); updateStick(); });
+
+      speedInput.addEventListener('input', () => {
+        speedReadout.textContent = speedInput.value;
+      });
+
+      estop.addEventListener('click', () => {
+        held.clear();
+        updateStick();
+        showToast('⏹ EMERGENCY STOP');
+      });
+    })();
+  </script>
+
+</body>
+</html>
