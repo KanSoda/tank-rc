@@ -56,7 +56,10 @@ picam2.start_recording(JpegEncoder(), FileOutput(output))
 _motor = None
 _motor_lock = threading.Lock()
 _last_cmd_time = 0
+_last_speeds = (0, 0)  # (left, right) for kickstart detection
 SAFETY_TIMEOUT = 0.5
+KICK_SPEED = 2000      # キックスタート時のフルパワー
+KICK_DURATION = 0.08   # 80ms 程度のバースト
 
 def get_motor():
     global _motor
@@ -66,8 +69,27 @@ def get_motor():
     return _motor
 
 
+def needs_kick(prev, curr):
+    """前回0 → 今回非0、または符号反転 ならキック必要"""
+    if curr == 0:
+        return False
+    if prev == 0:
+        return True
+    if (prev > 0) != (curr > 0):
+        return True
+    return False
+
+
+def kick_value(prev, curr):
+    """キックが必要な側はフルパワー、不要な側は目標値そのまま"""
+    if needs_kick(prev, curr):
+        return KICK_SPEED if curr > 0 else -KICK_SPEED
+    return curr
+
+
 def safety_watchdog():
     """モーターコマンドが SAFETY_TIMEOUT 秒来なければ自動停止。"""
+    global _last_speeds
     while True:
         time.sleep(0.1)
         if _last_cmd_time > 0 and (time.time() - _last_cmd_time) > SAFETY_TIMEOUT:
@@ -75,6 +97,7 @@ def safety_watchdog():
                 with _motor_lock:
                     if _motor is not None:
                         _motor.setMotorModel(0, 0)
+                        _last_speeds = (0, 0)
             except Exception:
                 pass
 
@@ -143,24 +166,35 @@ def snapshot():
 
 @app.route('/move', methods=['POST', 'GET'])
 def move():
-    global _last_cmd_time
+    global _last_cmd_time, _last_speeds
     try:
         left = max(-2000, min(2000, int(request.values.get('left', 0))))
         right = max(-2000, min(2000, int(request.values.get('right', 0))))
+        prev_l, prev_r = _last_speeds
+        kicked = False
         with _motor_lock:
-            get_motor().setMotorModel(left, right)
+            m = get_motor()
+            if needs_kick(prev_l, left) or needs_kick(prev_r, right):
+                kl = kick_value(prev_l, left)
+                kr = kick_value(prev_r, right)
+                m.setMotorModel(kl, kr)
+                time.sleep(KICK_DURATION)
+                kicked = True
+            m.setMotorModel(left, right)
+            _last_speeds = (left, right)
         _last_cmd_time = time.time()
-        return jsonify(ok=True, left=left, right=right)
+        return jsonify(ok=True, left=left, right=right, kicked=kicked)
     except Exception as e:
         return jsonify(ok=False, error=str(e)), 500
 
 
 @app.route('/stop', methods=['POST', 'GET'])
 def stop():
-    global _last_cmd_time
+    global _last_cmd_time, _last_speeds
     try:
         with _motor_lock:
             get_motor().setMotorModel(0, 0)
+            _last_speeds = (0, 0)
         _last_cmd_time = 0
         return jsonify(ok=True)
     except Exception as e:

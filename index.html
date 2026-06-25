@@ -305,8 +305,8 @@
   <footer class="toolbar">
     <div class="speed-control">
       <span>SPEED</span>
-      <input type="range" min="100" max="2000" step="50" value="800" id="speed">
-      <span class="stat-value" id="speed-out">800</span>
+      <input type="range" min="500" max="2000" step="50" value="1200" id="speed">
+      <span class="stat-value" id="speed-out">1200</span>
     </div>
     <div class="toolbar-right">
       <button class="reload-btn" id="reload-btn" title="カメラと接続を再試行">↻ RELOAD</button>
@@ -426,7 +426,8 @@
     }
 
     async function sendMove(L, R) {
-      if (lastSent.left === L && lastSent.right === R) return;
+      // 重複スキップしない: キー押下中はキープアライブとして 10Hz で送り続ける
+      // (Pi 側の Safety Watchdog 500ms を満たすため)
       lastSent = { left: L, right: R };
       const t0 = performance.now();
       try {
