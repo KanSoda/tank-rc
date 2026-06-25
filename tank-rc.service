@@ -1,0 +1,17 @@
+[Unit]
+Description=Tank RC Server (Pi camera + motor control)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi
+ExecStart=/usr/bin/python3 /home/pi/tank_rc_server.py
+Restart=always
+RestartSec=3
+StandardOutput=append:/home/pi/tank_rc.log
+StandardError=append:/home/pi/tank_rc.log
+
+[Install]
+WantedBy=multi-user.target

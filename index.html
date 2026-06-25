@@ -181,13 +181,51 @@
     }
     .speed-control { display: flex; align-items: center; gap: 8px; }
     .speed-control input[type="range"] { width: 100px; }
-    .e-stop {
+    .e-stop, .reload-btn {
       padding: 8px 16px;
-      background: var(--danger);
-      color: white;
       border: none;
       border-radius: 6px;
       font-size: 11px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      cursor: pointer;
+    }
+    .e-stop { background: var(--danger); color: white; }
+    .reload-btn { background: var(--panel); color: var(--text); border: 1px solid var(--border); }
+    .reload-btn.spinning { color: var(--accent); border-color: var(--accent); }
+    .toolbar-right { display: flex; gap: 8px; align-items: center; }
+
+    .offline-overlay {
+      position: fixed; inset: 0;
+      background: rgba(10,10,12,0.92);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 1000;
+      padding: 20px;
+      text-align: center;
+    }
+    .offline-overlay.visible { display: flex; }
+    .offline-overlay h2 { font-size: 22px; color: var(--danger); margin-bottom: 12px; font-weight: 600; }
+    .offline-overlay p { color: var(--muted); font-size: 13px; line-height: 1.7; margin-bottom: 6px; max-width: 420px; }
+    .offline-overlay .spinner {
+      width: 32px; height: 32px;
+      border: 3px solid var(--border);
+      border-top-color: var(--accent);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 16px 0;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .offline-overlay button {
+      margin-top: 16px;
+      padding: 10px 20px;
+      background: var(--primary);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 12px;
       font-weight: 600;
       letter-spacing: 0.05em;
       cursor: pointer;
@@ -270,8 +308,20 @@
       <input type="range" min="100" max="2000" step="50" value="800" id="speed">
       <span class="stat-value" id="speed-out">800</span>
     </div>
-    <button class="e-stop" id="estop">⏹ E-STOP</button>
+    <div class="toolbar-right">
+      <button class="reload-btn" id="reload-btn" title="カメラと接続を再試行">↻ RELOAD</button>
+      <button class="e-stop" id="estop">⏹ E-STOP</button>
+    </div>
   </footer>
+
+  <div class="offline-overlay" id="offline-overlay">
+    <h2>⚠ OFFLINE</h2>
+    <p>Pi に接続できません。</p>
+    <p><strong>確認:</strong> 電源(USB-C / バッテリー)が入っているか、Wi-Fi 圏内か</p>
+    <div class="spinner"></div>
+    <p style="font-size: 11px; opacity: 0.6;">自動で再接続を試みています…</p>
+    <button id="overlay-reload">手動リロード</button>
+  </div>
 
   <div id="toast" style="position: fixed; top: 70px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.85); color: var(--text); padding: 8px 16px; border-radius: 6px; font-size: 12px; letter-spacing: 0.05em; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 100;"></div>
 
@@ -306,17 +356,29 @@
     camUrlLabel.textContent = (PI_BASE || location.origin) + '/stream.mjpg';
 
     // ===== Camera =====
-    cam.src = (PI_BASE || '') + '/stream.mjpg';
+    let camRetryTimer = null;
+    function reloadCamera() {
+      cam.classList.add('hidden');
+      camPlaceholder.style.display = 'block';
+      cam.src = (PI_BASE || '') + '/stream.mjpg?t=' + Date.now();
+    }
     cam.addEventListener('load', () => {
       cam.classList.remove('hidden');
       camPlaceholder.style.display = 'none';
+      if (camRetryTimer) { clearTimeout(camRetryTimer); camRetryTimer = null; }
     });
     cam.addEventListener('error', () => {
       cam.classList.add('hidden');
       camPlaceholder.style.display = 'block';
       camPlaceholder.querySelector('span').textContent = '⚠️';
-      camPlaceholder.firstChild.nextSibling.textContent = ' Camera unreachable';
+      if (!camRetryTimer) {
+        camRetryTimer = setTimeout(() => {
+          camRetryTimer = null;
+          reloadCamera();
+        }, 3000);
+      }
     });
+    reloadCamera();
 
     // ===== State =====
     const TRAVEL = 28;
@@ -482,20 +544,53 @@
       $('btn-led').classList.toggle('active', ledOn);
     });
 
-    // ===== Stats polling =====
+    // ===== Stats polling + offline detection =====
+    const offlineOverlay = $('offline-overlay');
+    let offlineCount = 0;
+    let wasOnline = true;
+
     async function pollStats() {
+      const t0 = performance.now();
       try {
-        const res = await fetch(PI_BASE + '/stats');
+        const res = await fetch(PI_BASE + '/stats', { cache: 'no-store' });
         if (!res.ok) throw new Error();
         const s = await res.json();
         statusDot.className = 'brand-dot online';
         if (s.cpu_temp != null) statCpu.textContent = s.cpu_temp.toFixed(1);
+        statPing.textContent = Math.round(performance.now() - t0);
+
+        if (!wasOnline) {
+          showToast('● RECONNECTED');
+          reloadCamera();
+        }
+        wasOnline = true;
+        offlineCount = 0;
+        offlineOverlay.classList.remove('visible');
       } catch (e) {
+        offlineCount++;
         statusDot.className = 'brand-dot offline';
+        statPing.textContent = '--';
+        statCpu.textContent = '--';
+        if (offlineCount >= 2) {
+          offlineOverlay.classList.add('visible');
+          wasOnline = false;
+        }
       }
     }
     pollStats();
     setInterval(pollStats, 3000);
+
+    // ===== Reload button =====
+    const reloadBtn = $('reload-btn');
+    function manualReload() {
+      reloadBtn.classList.add('spinning');
+      reloadCamera();
+      pollStats();
+      showToast('↻ RELOAD');
+      setTimeout(() => reloadBtn.classList.remove('spinning'), 1500);
+    }
+    reloadBtn.addEventListener('click', manualReload);
+    $('overlay-reload').addEventListener('click', manualReload);
   })();
   </script>
 
